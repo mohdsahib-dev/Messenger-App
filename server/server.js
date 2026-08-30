@@ -12,7 +12,6 @@ const messageRoutes = require("./routes/messages");
 
 const Message = require("./models/Message");
 
-
 // ========================================
 // EXPRESS APP
 // ========================================
@@ -21,6 +20,14 @@ const app = express();
 
 const server = http.createServer(app);
 
+// ========================================
+// ALLOWED FRONTEND ORIGINS
+// ========================================
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://messenger-app-cyan-two.vercel.app",
+];
 
 // ========================================
 // CORS
@@ -28,7 +35,22 @@ const server = http.createServer(app);
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: function (origin, callback) {
+      // Allow requests with no origin
+      // Example: Postman, server-to-server requests
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(
+        new Error("Not allowed by CORS")
+      );
+    },
+
     methods: [
       "GET",
       "POST",
@@ -36,17 +58,16 @@ app.use(
       "DELETE",
       "OPTIONS",
     ],
+
     credentials: true,
   })
 );
-
 
 // ========================================
 // BODY PARSER
 // ========================================
 
 app.use(express.json());
-
 
 // ========================================
 // API ROUTES
@@ -67,7 +88,6 @@ app.use(
   messageRoutes
 );
 
-
 // ========================================
 // TEST ROUTE
 // ========================================
@@ -79,22 +99,25 @@ app.get("/", (req, res) => {
   });
 });
 
-
 // ========================================
 // SOCKET.IO
 // ========================================
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",
+      "https://messenger-app-cyan-two.vercel.app",
+    ],
+
     methods: [
       "GET",
       "POST",
     ],
+
     credentials: true,
   },
 });
-
 
 // ========================================
 // MONGODB CONNECTION
@@ -114,7 +137,6 @@ mongoose
     );
   });
 
-
 // ========================================
 // SOCKET CONNECTION
 // ========================================
@@ -125,7 +147,6 @@ io.on("connection", (socket) => {
     "User connected:",
     socket.id
   );
-
 
   // ======================================
   // JOIN CHAT ROOM
@@ -144,7 +165,6 @@ io.on("connection", (socket) => {
     }
   );
 
-
   // ======================================
   // SEND MESSAGE
   // ======================================
@@ -160,14 +180,15 @@ io.on("connection", (socket) => {
           data
         );
 
-
         // ================================
         // SAVE MESSAGE
         // ================================
 
         const newMessage =
           new Message({
-            roomId: data.roomId,
+
+            roomId:
+              data.roomId,
 
             senderId:
               data.senderId,
@@ -182,16 +203,13 @@ io.on("connection", (socket) => {
               data.message,
           });
 
-
         const savedMessage =
           await newMessage.save();
-
 
         console.log(
           "Message saved to MongoDB:",
           savedMessage._id
         );
-
 
         // ================================
         // SEND MESSAGE TO ROOM
@@ -232,7 +250,6 @@ io.on("connection", (socket) => {
           error
         );
 
-
         socket.emit(
           "message_error",
           {
@@ -242,10 +259,8 @@ io.on("connection", (socket) => {
         );
 
       }
-
     }
   );
-
 
   // ======================================
   // DISCONNECT
@@ -265,7 +280,6 @@ io.on("connection", (socket) => {
 
 });
 
-
 // ========================================
 // SERVER
 // ========================================
@@ -273,13 +287,12 @@ io.on("connection", (socket) => {
 const PORT =
   process.env.PORT || 5000;
 
-
 server.listen(
   PORT,
   () => {
 
     console.log(
-      `Server running on http://localhost:${PORT}`
+      `Server running on port ${PORT}`
     );
 
   }
