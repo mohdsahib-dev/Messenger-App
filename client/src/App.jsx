@@ -100,7 +100,7 @@ function App() {
 
 
     const newSocket = io(
-      "http://localhost:5000",
+      "https://messenger-app-of9j.onrender.com",
       {
         transports: ["websocket", "polling"],
       }
@@ -416,7 +416,7 @@ function App() {
 
         const response =
           await fetch(
-            `http://localhost:5000/api/users/${currentUserId}`
+            `https://messenger-app-of9j.onrender.com/api/users/${currentUserId}`
           );
 
 
@@ -477,8 +477,8 @@ function App() {
 
     const endpoint =
       isLogin
-        ? "http://localhost:5000/api/auth/login"
-        : "http://localhost:5000/api/auth/register";
+    ? "https://messenger-app-of9j.onrender.com/api/auth/login"
+    : "https://messenger-app-of9j.onrender.com/api/auth/register";
 
 
     const body =
@@ -734,7 +734,7 @@ function App() {
 
       const response =
         await fetch(
-          `http://localhost:5000/api/messages/${roomId}`
+    `https://messenger-app-of9j.onrender.com/api/messages/${roomId}`
         );
 
 
