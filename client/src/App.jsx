@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
@@ -38,13 +37,21 @@ function App() {
 
 
   // ========================================
+  // FILE UPLOAD
+  // ========================================
+
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  const fileInputRef = useRef(null);
+
+
+  // ========================================
   // SOCKET
   // ========================================
 
   const socketRef = useRef(null);
 
-  // Keep currently selected user accessible
-  // inside Socket.IO event handlers
   const selectedUserRef = useRef(null);
 
 
@@ -95,9 +102,7 @@ function App() {
       return;
     }
 
-
     console.log("🔌 Connecting Socket.IO...");
-
 
     const newSocket = io(
       "https://messenger-app-of9j.onrender.com",
@@ -105,7 +110,6 @@ function App() {
         transports: ["websocket", "polling"],
       }
     );
-
 
     socketRef.current = newSocket;
 
@@ -121,15 +125,11 @@ function App() {
         newSocket.id
       );
 
-
-      // If a chat was already selected,
-      // join its room after reconnect
       const currentUser =
         getCurrentUser();
 
       const selectedUser =
         selectedUserRef.current;
-
 
       if (
         currentUser &&
@@ -144,7 +144,6 @@ function App() {
           selectedUser._id ||
           selectedUser.id;
 
-
         if (
           currentUserId &&
           selectedUserId
@@ -156,12 +155,10 @@ function App() {
               selectedUserId
             );
 
-
           console.log(
             "🔄 Rejoining room:",
             roomId
           );
-
 
           newSocket.emit(
             "join_room",
@@ -205,13 +202,11 @@ function App() {
           data
         );
 
-
         const currentUser =
           getCurrentUser();
 
         const selectedUser =
           selectedUserRef.current;
-
 
         if (
           !currentUser ||
@@ -222,7 +217,6 @@ function App() {
 
         }
 
-
         const currentUserId =
           currentUser._id ||
           currentUser.id;
@@ -231,21 +225,11 @@ function App() {
           selectedUser._id ||
           selectedUser.id;
 
-
-        // ==================================
-        // CURRENT CHAT ROOM
-        // ==================================
-
         const currentRoomId =
           createRoomId(
             currentUserId,
             selectedUserId
           );
-
-
-        // ==================================
-        // IGNORE OTHER CHAT MESSAGES
-        // ==================================
 
         if (
           String(data.roomId) !==
@@ -268,27 +252,37 @@ function App() {
 
         const formattedMessage = {
 
-          _id: data._id,
+          _id:
+            data._id,
 
-          roomId: data.roomId,
+          roomId:
+            data.roomId,
 
-          senderId: data.senderId,
+          senderId:
+            data.senderId,
 
-          receiverId: data.receiverId,
+          receiverId:
+            data.receiverId,
 
-          username: data.username,
+          username:
+            data.username,
 
-          text: data.message,
+          text:
+            data.message,
 
-          time: new Date(
-            data.timestamp
-          ).toLocaleTimeString(
-            [],
-            {
-              hour: "2-digit",
-              minute: "2-digit",
-            }
-          ),
+          file:
+            data.file || null,
+
+          time:
+            new Date(
+              data.timestamp
+            ).toLocaleTimeString(
+              [],
+              {
+                hour: "2-digit",
+                minute: "2-digit",
+              }
+            ),
 
         };
 
@@ -299,7 +293,6 @@ function App() {
 
         setMessages((prev) => {
 
-          // Prevent duplicate messages
           if (
             prev.some(
               (msg) =>
@@ -311,7 +304,6 @@ function App() {
             return prev;
 
           }
-
 
           return [
             ...prev,
@@ -368,9 +360,7 @@ function App() {
         "🔌 Cleaning Socket.IO connection..."
       );
 
-
       newSocket.disconnect();
-
 
       socketRef.current = null;
 
@@ -390,16 +380,13 @@ function App() {
       const currentUser =
         getCurrentUser();
 
-
       if (!currentUser) {
         return;
       }
 
-
       const currentUserId =
         currentUser._id ||
         currentUser.id;
-
 
       if (!currentUserId) {
 
@@ -411,7 +398,6 @@ function App() {
 
       }
 
-
       try {
 
         const response =
@@ -419,10 +405,8 @@ function App() {
             `https://messenger-app-of9j.onrender.com/api/users/${currentUserId}`
           );
 
-
         const data =
           await response.json();
-
 
         if (!response.ok) {
 
@@ -433,7 +417,6 @@ function App() {
           return;
 
         }
-
 
         if (data.success) {
 
@@ -474,12 +457,10 @@ function App() {
 
     setMessage("");
 
-
     const endpoint =
       isLogin
-    ? "https://messenger-app-of9j.onrender.com/api/auth/login"
-    : "https://messenger-app-of9j.onrender.com/api/auth/register";
-
+        ? "https://messenger-app-of9j.onrender.com/api/auth/login"
+        : "https://messenger-app-of9j.onrender.com/api/auth/register";
 
     const body =
       isLogin
@@ -492,7 +473,6 @@ function App() {
             email,
             password,
           };
-
 
     try {
 
@@ -512,10 +492,8 @@ function App() {
           }
         );
 
-
       const data =
         await response.json();
-
 
       if (!response.ok) {
 
@@ -528,12 +506,10 @@ function App() {
 
       }
 
-
       localStorage.setItem(
         "token",
         data.token
       );
-
 
       localStorage.setItem(
         "user",
@@ -542,12 +518,10 @@ function App() {
         )
       );
 
-
       setMessage(
         data.message ||
         "Authentication successful"
       );
-
 
       setPassword("");
 
@@ -559,7 +533,6 @@ function App() {
         "Authentication error:",
         error
       );
-
 
       setMessage(
         "Cannot connect to server"
@@ -584,7 +557,6 @@ function App() {
       "user"
     );
 
-
     if (socketRef.current) {
 
       socketRef.current.disconnect();
@@ -592,7 +564,6 @@ function App() {
       socketRef.current = null;
 
     }
-
 
     setIsLoggedIn(false);
 
@@ -606,6 +577,10 @@ function App() {
 
     setText("");
 
+    setSelectedFile(null);
+
+    setUploading(false);
+
   };
 
 
@@ -615,20 +590,16 @@ function App() {
 
   const selectUser = async (user) => {
 
-    // ======================================
-    // SAVE SELECTED USER
-    // ======================================
-
     setSelectedUser(user);
 
     selectedUserRef.current = user;
 
     setMessages([]);
 
+    setSelectedFile(null);
 
     const currentUser =
       getCurrentUser();
-
 
     if (!currentUser) {
 
@@ -640,16 +611,13 @@ function App() {
 
     }
 
-
     const currentUserId =
       currentUser._id ||
       currentUser.id;
 
-
     const selectedUserId =
       user._id ||
       user.id;
-
 
     if (
       !currentUserId ||
@@ -664,31 +632,19 @@ function App() {
 
     }
 
-
-    // ======================================
-    // CREATE ROOM
-    // ======================================
-
     const roomId =
       createRoomId(
         currentUserId,
         selectedUserId
       );
 
-
     console.log(
       "🏠 Room ID:",
       roomId
     );
 
-
-    // ======================================
-    // SOCKET
-    // ======================================
-
     const socket =
       socketRef.current;
-
 
     if (
       !socket ||
@@ -703,22 +659,15 @@ function App() {
 
     }
 
-
-    // ======================================
-    // JOIN ROOM
-    // ======================================
-
     console.log(
       "🚪 Joining room:",
       roomId
     );
 
-
     socket.emit(
       "join_room",
       roomId
     );
-
 
     console.log(
       "✅ Join room event sent:",
@@ -734,13 +683,11 @@ function App() {
 
       const response =
         await fetch(
-    `https://messenger-app-of9j.onrender.com/api/messages/${roomId}`
+          `https://messenger-app-of9j.onrender.com/api/messages/${roomId}`
         );
-
 
       const data =
         await response.json();
-
 
       if (
         data.success
@@ -768,6 +715,9 @@ function App() {
               text:
                 msg.message,
 
+              file:
+                msg.file || null,
+
               time:
                 new Date(
                   msg.createdAt
@@ -784,7 +734,6 @@ function App() {
 
             })
           );
-
 
         setMessages(
           formattedMessages
@@ -805,25 +754,134 @@ function App() {
 
 
   // ========================================
-  // SEND MESSAGE
+  // FILE SELECT
   // ========================================
 
-  const sendMessage = () => {
+  const handleFileSelect = (e) => {
 
-    // ======================================
-    // TEXT CHECK
-    // ======================================
+    const file =
+      e.target.files[0];
 
-    if (!text.trim()) {
+    if (!file) {
+      return;
+    }
+
+    // Maximum 20 MB
+    const maxSize =
+      20 * 1024 * 1024;
+
+    if (
+      file.size > maxSize
+    ) {
+
+      alert(
+        "File size cannot exceed 20 MB."
+      );
+
+      e.target.value = "";
 
       return;
 
     }
 
+    setSelectedFile(file);
 
-    // ======================================
-    // SELECTED USER CHECK
-    // ======================================
+    console.log(
+      "📎 Selected file:",
+      file
+    );
+
+  };
+
+
+  // ========================================
+  // UPLOAD FILE
+  // ========================================
+
+  const uploadFile = async () => {
+
+    if (!selectedFile) {
+      return null;
+    }
+
+    try {
+
+      setUploading(true);
+
+      const formData =
+        new FormData();
+
+      formData.append(
+        "file",
+        selectedFile
+      );
+
+      const response =
+        await fetch(
+          "http://localhost:5000/api/files/upload",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.message ||
+          "File upload failed"
+        );
+
+      }
+
+      console.log(
+        "✅ File uploaded:",
+        data
+      );
+
+      return data.file;
+
+    } catch (error) {
+
+      console.error(
+        "❌ File upload error:",
+        error
+      );
+
+      alert(
+        error.message ||
+        "File upload failed"
+      );
+
+      return null;
+
+    } finally {
+
+      setUploading(false);
+
+    }
+
+  };
+
+
+  // ========================================
+  // SEND MESSAGE
+  // ========================================
+
+  const sendMessage = async () => {
+
+    // Text OR file required
+    if (
+      !text.trim() &&
+      !selectedFile
+    ) {
+
+      return;
+
+    }
 
     if (!selectedUser) {
 
@@ -835,14 +893,8 @@ function App() {
 
     }
 
-
-    // ======================================
-    // SOCKET CHECK
-    // ======================================
-
     const socket =
       socketRef.current;
-
 
     if (
       !socket ||
@@ -857,14 +909,8 @@ function App() {
 
     }
 
-
-    // ======================================
-    // CURRENT USER
-    // ======================================
-
     const currentUser =
       getCurrentUser();
-
 
     if (!currentUser) {
 
@@ -876,20 +922,13 @@ function App() {
 
     }
 
-
     const currentUserId =
       currentUser._id ||
       currentUser.id;
 
-
     const selectedUserId =
       selectedUser._id ||
       selectedUser.id;
-
-
-    // ======================================
-    // ROOM ID
-    // ======================================
 
     const roomId =
       createRoomId(
@@ -898,27 +937,51 @@ function App() {
       );
 
 
+    // ======================================
+    // UPLOAD FILE FIRST
+    // ======================================
+
+    let uploadedFile = null;
+
+    if (selectedFile) {
+
+      uploadedFile =
+        await uploadFile();
+
+      if (!uploadedFile) {
+
+        return;
+
+      }
+
+    }
+
+
+    // ======================================
+    // SEND MESSAGE
+    // ======================================
+
     console.log(
       "📤 Sending message:",
       {
         roomId,
-        senderId: currentUserId,
-        receiverId: selectedUserId,
+        senderId:
+          currentUserId,
+        receiverId:
+          selectedUserId,
         username:
           currentUser.username,
         message:
           text.trim(),
+        file:
+          uploadedFile,
       }
     );
-
-
-    // ======================================
-    // SEND TO SERVER
-    // ======================================
 
     socket.emit(
       "send_message",
       {
+
         roomId,
 
         senderId:
@@ -932,15 +995,29 @@ function App() {
 
         message:
           text.trim(),
+
+        file:
+          uploadedFile,
+
       }
     );
 
 
     // ======================================
-    // CLEAR INPUT
+    // CLEAR
     // ======================================
 
     setText("");
+
+    setSelectedFile(null);
+
+    if (
+      fileInputRef.current
+    ) {
+
+      fileInputRef.current.value = "";
+
+    }
 
   };
 
@@ -965,6 +1042,216 @@ function App() {
 
 
   // ========================================
+  // FORMAT FILE SIZE
+  // ========================================
+
+  const formatFileSize = (bytes) => {
+
+    if (!bytes) {
+      return "";
+    }
+
+    if (
+      bytes < 1024
+    ) {
+
+      return `${bytes} B`;
+
+    }
+
+    if (
+      bytes < 1024 * 1024
+    ) {
+
+      return `${(
+        bytes / 1024
+      ).toFixed(1)} KB`;
+
+    }
+
+    return `${(
+      bytes /
+      (1024 * 1024)
+    ).toFixed(1)} MB`;
+
+  };
+
+
+  // ========================================
+  // GET FILE ICON
+  // ========================================
+
+  const getFileIcon = (fileType) => {
+
+    if (
+      fileType?.startsWith(
+        "image/"
+      )
+    ) {
+
+      return "🖼️";
+
+    }
+
+    if (
+      fileType ===
+      "application/pdf"
+    ) {
+
+      return "📕";
+
+    }
+
+    if (
+      fileType?.includes(
+        "spreadsheet"
+      ) ||
+      fileType?.includes(
+        "excel"
+      )
+    ) {
+
+      return "📊";
+
+    }
+
+    if (
+      fileType?.includes(
+        "word"
+      )
+    ) {
+
+      return "📘";
+
+    }
+
+    if (
+      fileType?.includes(
+        "zip"
+      )
+    ) {
+
+      return "📦";
+
+    }
+
+    return "📄";
+
+  };
+
+
+  // ========================================
+  // RENDER FILE
+  // ========================================
+
+  const renderFile = (file) => {
+
+    if (!file) {
+      return null;
+    }
+
+    const fileUrl =
+      `http://localhost:5000${file.fileUrl}`;
+
+
+    // ======================================
+    // IMAGE
+    // ======================================
+
+    if (
+      file.fileType?.startsWith(
+        "image/"
+      )
+    ) {
+
+      return (
+
+        <div className="chat-file image-file">
+
+          <img
+            src={fileUrl}
+            alt={
+              file.originalName
+            }
+            className="chat-image"
+          />
+
+          <a
+            href={fileUrl}
+            download={
+              file.originalName
+            }
+            target="_blank"
+            rel="noreferrer"
+          >
+            Download
+          </a>
+
+        </div>
+
+      );
+
+    }
+
+
+    // ======================================
+    // OTHER FILES
+    // ======================================
+
+    return (
+
+      <div className="chat-file">
+
+        <div className="file-icon">
+
+          {getFileIcon(
+            file.fileType
+          )}
+
+        </div>
+
+        <div className="file-details">
+
+          <div className="file-name">
+
+            {
+              file.originalName
+            }
+
+          </div>
+
+          <div className="file-size">
+
+            {
+              formatFileSize(
+                file.fileSize
+              )
+            }
+
+          </div>
+
+        </div>
+
+        <a
+          href={fileUrl}
+          download={
+            file.originalName
+          }
+          target="_blank"
+          rel="noreferrer"
+          className="download-button"
+        >
+          Download
+        </a>
+
+      </div>
+
+    );
+
+  };
+
+
+  // ========================================
   // AUTH PAGE
   // ========================================
 
@@ -980,11 +1267,9 @@ function App() {
             💬
           </div>
 
-
           <h1>
             Messenger
           </h1>
-
 
           <p className="subtitle">
 
@@ -993,7 +1278,6 @@ function App() {
               : "Create your messenger account"}
 
           </p>
-
 
           <form
             onSubmit={
@@ -1019,7 +1303,6 @@ function App() {
 
             )}
 
-
             <input
               type="email"
               placeholder="Email"
@@ -1033,7 +1316,6 @@ function App() {
               }
               required
             />
-
 
             <input
               type="password"
@@ -1049,7 +1331,6 @@ function App() {
               required
             />
 
-
             <button
               type="submit"
             >
@@ -1062,7 +1343,6 @@ function App() {
 
           </form>
 
-
           {message && (
 
             <p className="auth-message">
@@ -1070,7 +1350,6 @@ function App() {
             </p>
 
           )}
-
 
           <div className="switch-auth">
 
@@ -1160,7 +1439,6 @@ function App() {
             Messenger
           </h2>
 
-
           <button
             className="logout"
             onClick={
@@ -1174,12 +1452,10 @@ function App() {
 
         </div>
 
-
         <input
           className="search"
           placeholder="Search users..."
         />
-
 
         <div className="user-list">
 
@@ -1210,11 +1486,9 @@ function App() {
                   user._id ||
                   user.id;
 
-
                 const selectedId =
                   selectedUser?._id ||
                   selectedUser?.id;
-
 
                 return (
 
@@ -1245,7 +1519,6 @@ function App() {
 
                     </div>
 
-
                     <div className="user-info">
 
                       <div className="user-name">
@@ -1257,7 +1530,6 @@ function App() {
                         <span className="online-dot"></span>
 
                       </div>
-
 
                       <div className="last-message">
 
@@ -1297,12 +1569,10 @@ function App() {
               💬
             </div>
 
-
             <h2>
               Welcome to
               Messenger
             </h2>
-
 
             <p>
               Select a user
@@ -1330,7 +1600,6 @@ function App() {
                   .toUpperCase()}
 
               </div>
-
 
               <div>
 
@@ -1373,11 +1642,9 @@ function App() {
                   const currentUser =
                     getCurrentUser();
 
-
                   const currentUserId =
                     currentUser?._id ||
                     currentUser?.id;
-
 
                   const isMine =
                     String(
@@ -1386,7 +1653,6 @@ function App() {
                     String(
                       currentUserId
                     );
-
 
                   return (
 
@@ -1405,12 +1671,32 @@ function App() {
 
                       <div className="message">
 
-                        <p>
-                          {
-                            msg.text
-                          }
-                        </p>
 
+                        {/* TEXT */}
+
+                        {msg.text && (
+
+                          <p>
+                            {
+                              msg.text
+                            }
+                          </p>
+
+                        )}
+
+
+                        {/* FILE */}
+
+                        {msg.file && (
+
+                          renderFile(
+                            msg.file
+                          )
+
+                        )}
+
+
+                        {/* TIME */}
 
                         <span>
                           {
@@ -1430,9 +1716,98 @@ function App() {
             </div>
 
 
+            {/* SELECTED FILE PREVIEW */}
+
+            {selectedFile && (
+
+              <div className="selected-file">
+
+                <span>
+
+                  📎{" "}
+                  {
+                    selectedFile.name
+                  }
+
+                  {" "}
+                  (
+                  {
+                    formatFileSize(
+                      selectedFile.size
+                    )
+                  }
+                  )
+
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+
+                    setSelectedFile(
+                      null
+                    );
+
+                    if (
+                      fileInputRef.current
+                    ) {
+
+                      fileInputRef.current.value =
+                        "";
+
+                    }
+
+                  }}
+                >
+
+                  ✕
+
+                </button>
+
+              </div>
+
+            )}
+
+
             {/* INPUT */}
 
             <div className="message-input">
+
+              {/* HIDDEN FILE INPUT */}
+
+              <input
+                ref={
+                  fileInputRef
+                }
+                type="file"
+                hidden
+                onChange={
+                  handleFileSelect
+                }
+              />
+
+
+              {/* ATTACH BUTTON */}
+
+              <button
+                type="button"
+                onClick={() => {
+
+                  fileInputRef.current?.click();
+
+                }}
+                disabled={
+                  uploading
+                }
+                title="Attach file"
+              >
+
+                📎
+
+              </button>
+
+
+              {/* TEXT INPUT */}
 
               <input
                 type="text"
@@ -1448,16 +1823,26 @@ function App() {
                 onKeyDown={
                   handleMessageKeyDown
                 }
+                disabled={
+                  uploading
+                }
               />
 
+
+              {/* SEND BUTTON */}
 
               <button
                 onClick={
                   sendMessage
                 }
+                disabled={
+                  uploading
+                }
               >
 
-                Send
+                {uploading
+                  ? "Uploading..."
+                  : "Send"}
 
               </button>
 
@@ -1476,3 +1861,4 @@ function App() {
 }
 
 export default App;
+

@@ -5,7 +5,13 @@ const http = require("http");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const { Server } = require("socket.io");
+const path = require("path");
 
+// ========================================
+// ROUTES
+// ========================================
+
+const fileRoutes = require("./routes/fileRoutes");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
 const messageRoutes = require("./routes/messages");
@@ -68,6 +74,39 @@ app.use(
 // ========================================
 
 app.use(express.json());
+
+// ========================================
+// FILE ROUTES
+// ========================================
+
+// Upload API
+// POST /api/files/upload
+
+app.use(
+  "/api/files",
+  fileRoutes
+);
+
+// ========================================
+// STATIC UPLOADED FILES
+// ========================================
+app.use(
+  "/uploads",
+  express.static("uploads")
+);
+
+// Files inside:
+// server/uploads/
+//
+// can be accessed using:
+// http://localhost:5000/uploads/filename.pdf
+
+app.use(
+  "/uploads",
+  express.static(
+    path.join(__dirname, "uploads")
+  )
+);
 
 // ========================================
 // API ROUTES
@@ -184,24 +223,28 @@ io.on("connection", (socket) => {
         // SAVE MESSAGE
         // ================================
 
-        const newMessage =
-          new Message({
+const newMessage =
+  new Message({
 
-            roomId:
-              data.roomId,
+    roomId:
+      data.roomId,
 
-            senderId:
-              data.senderId,
+    senderId:
+      data.senderId,
 
-            senderUsername:
-              data.username,
+    senderUsername:
+      data.username,
 
-            receiverId:
-              data.receiverId,
+    receiverId:
+      data.receiverId,
 
-            message:
-              data.message,
-          });
+    message:
+      data.message || "",
+
+    file:
+      data.file || null,
+
+  });
 
         const savedMessage =
           await newMessage.save();
@@ -215,33 +258,36 @@ io.on("connection", (socket) => {
         // SEND MESSAGE TO ROOM
         // ================================
 
-        io
-          .to(data.roomId)
-          .emit(
-            "receive_message",
-            {
-              _id:
-                savedMessage._id,
+io
+  .to(data.roomId)
+  .emit(
+    "receive_message",
+    {
+      _id:
+        savedMessage._id,
 
-              roomId:
-                savedMessage.roomId,
+      roomId:
+        savedMessage.roomId,
 
-              senderId:
-                savedMessage.senderId,
+      senderId:
+        savedMessage.senderId,
 
-              receiverId:
-                savedMessage.receiverId,
+      receiverId:
+        savedMessage.receiverId,
 
-              username:
-                savedMessage.senderUsername,
+      username:
+        savedMessage.senderUsername,
 
-              message:
-                savedMessage.message,
+      message:
+        savedMessage.message,
 
-              timestamp:
-                savedMessage.createdAt,
-            }
-          );
+      file:
+        savedMessage.file || null,
+
+      timestamp:
+        savedMessage.createdAt,
+    }
+  );
 
       } catch (error) {
 
@@ -259,6 +305,7 @@ io.on("connection", (socket) => {
         );
 
       }
+
     }
   );
 
