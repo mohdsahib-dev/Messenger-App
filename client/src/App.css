@@ -97,7 +97,7 @@ body {
 .messenger {
   height: 100vh;
   display: flex;
-  background: #f0f2f5;
+  background: #0084ff;
 }
 
 /* =========================
@@ -137,7 +137,7 @@ body {
   margin: 15px;
   padding: 12px;
   border: none;
-  background: #f0f2f5;
+  background: #111111;
   border-radius: 20px;
   outline: none;
 }
