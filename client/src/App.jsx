@@ -818,7 +818,7 @@ function App() {
 
       const response =
         await fetch(
-          "http://localhost:5000/api/files/upload",
+          "https://messenger-app-of9j.onrender.com/api/files/upload",
           {
             method: "POST",
             body: formData,
@@ -1151,7 +1151,7 @@ function App() {
     }
 
     const fileUrl =
-      `http://localhost:5000${file.fileUrl}`;
+      `https://messenger-app-of9j.onrender.com${file.fileUrl}`;
 
 
     // ======================================
