@@ -10,9 +10,20 @@ function App() {
 
   const [isLogin, setIsLogin] = useState(true);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    !!localStorage.getItem("token")
-  );
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+
+    const token =
+      sessionStorage.getItem("token");
+
+    const user =
+      sessionStorage.getItem("user");
+
+    return !!(
+      token &&
+      user
+    );
+
+  });
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -72,7 +83,7 @@ function App() {
     try {
 
       return JSON.parse(
-        localStorage.getItem("user")
+        sessionStorage.getItem("user")
       );
 
     } catch {
@@ -80,6 +91,32 @@ function App() {
       return null;
 
     }
+
+  };
+
+
+  // ========================================
+  // GET / CREATE SESSION ID
+  // ========================================
+
+  const getSessionId = () => {
+
+    let sessionId =
+      sessionStorage.getItem("sessionId");
+
+    if (!sessionId) {
+
+      sessionId =
+        crypto.randomUUID();
+
+      sessionStorage.setItem(
+        "sessionId",
+        sessionId
+      );
+
+    }
+
+    return sessionId;
 
   };
 
@@ -107,7 +144,31 @@ function App() {
   useEffect(() => {
 
     if (!isLoggedIn) {
+
       return;
+
+    }
+
+
+    // ======================================
+    // CHECK SESSION
+    // ======================================
+
+    const token =
+      sessionStorage.getItem("token");
+
+    const sessionId =
+      getSessionId();
+
+
+    if (!token || !sessionId) {
+
+      console.error(
+        "❌ Authentication session missing"
+      );
+
+      return;
+
     }
 
 
@@ -116,18 +177,34 @@ function App() {
     );
 
 
-    const newSocket = io(
-      API_URL,
-      {
-        transports: [
-          "websocket",
-          "polling",
-        ],
-      }
-    );
+    // ======================================
+    // CREATE SOCKET
+    // ======================================
+
+    const newSocket =
+      io(
+        API_URL,
+        {
+
+          transports: [
+            "websocket",
+            "polling",
+          ],
+
+          auth: {
+
+            token,
+
+            sessionId,
+
+          },
+
+        }
+      );
 
 
-    socketRef.current = newSocket;
+    socketRef.current =
+      newSocket;
 
 
     // ======================================
@@ -307,7 +384,6 @@ function App() {
           text:
             data.message || "",
 
-          // FILE DATA
           file:
             data.file || null,
 
@@ -414,7 +490,8 @@ function App() {
 
       newSocket.disconnect();
 
-      socketRef.current = null;
+      socketRef.current =
+        null;
 
     };
 
@@ -434,7 +511,9 @@ function App() {
 
 
       if (!currentUser) {
+
         return;
+
       }
 
 
@@ -454,11 +533,43 @@ function App() {
       }
 
 
+      const token =
+        sessionStorage.getItem("token");
+
+
+      const sessionId =
+        getSessionId();
+
+
+      if (!token || !sessionId) {
+
+        console.error(
+          "❌ Authentication session missing"
+        );
+
+        return;
+
+      }
+
+
       try {
 
         const response =
           await fetch(
-            `${API_URL}/api/users/${currentUserId}`
+            `${API_URL}/api/users/${currentUserId}`,
+            {
+
+              headers: {
+
+                Authorization:
+                  `Bearer ${token}`,
+
+                "X-Session-ID":
+                  sessionId,
+
+              },
+
+            }
           );
 
 
@@ -517,22 +628,49 @@ function App() {
     setMessage("");
 
 
+    // ======================================
+    // CREATE UNIQUE SESSION FOR THIS LOGIN
+    // ======================================
+
+    const sessionId =
+      crypto.randomUUID();
+
+
+    // ======================================
+    // API ENDPOINT
+    // ======================================
+
     const endpoint =
       isLogin
         ? `${API_URL}/api/auth/login`
         : `${API_URL}/api/auth/register`;
 
 
+    // ======================================
+    // REQUEST BODY
+    // ======================================
+
     const body =
       isLogin
         ? {
+
             email,
+
             password,
+
+            sessionId,
+
           }
         : {
+
             username,
+
             email,
+
             password,
+
+            sessionId,
+
           };
 
 
@@ -542,15 +680,22 @@ function App() {
         await fetch(
           endpoint,
           {
-            method: "POST",
+
+            method:
+              "POST",
 
             headers: {
+
               "Content-Type":
                 "application/json",
+
             },
 
             body:
-              JSON.stringify(body),
+              JSON.stringify(
+                body
+              ),
+
           }
         );
 
@@ -558,6 +703,10 @@ function App() {
       const data =
         await response.json();
 
+
+      // ====================================
+      // ERROR
+      // ====================================
 
       if (!response.ok) {
 
@@ -571,19 +720,33 @@ function App() {
       }
 
 
-      localStorage.setItem(
+      // ====================================
+      // SAVE SESSION
+      // ====================================
+
+      sessionStorage.setItem(
         "token",
         data.token
       );
 
 
-      localStorage.setItem(
+      sessionStorage.setItem(
         "user",
         JSON.stringify(
           data.user
         )
       );
 
+
+      sessionStorage.setItem(
+        "sessionId",
+        sessionId
+      );
+
+
+      // ====================================
+      // SUCCESS
+      // ====================================
 
       setMessage(
         data.message ||
@@ -618,29 +781,47 @@ function App() {
 
   const logout = () => {
 
-    localStorage.removeItem(
+    // ======================================
+    // REMOVE SESSION
+    // ======================================
+
+    sessionStorage.removeItem(
       "token"
     );
 
-    localStorage.removeItem(
+    sessionStorage.removeItem(
       "user"
     );
 
+    sessionStorage.removeItem(
+      "sessionId"
+    );
+
+
+    // ======================================
+    // DISCONNECT SOCKET
+    // ======================================
 
     if (socketRef.current) {
 
       socketRef.current.disconnect();
 
-      socketRef.current = null;
+      socketRef.current =
+        null;
 
     }
 
+
+    // ======================================
+    // RESET APPLICATION
+    // ======================================
 
     setIsLoggedIn(false);
 
     setSelectedUser(null);
 
-    selectedUserRef.current = null;
+    selectedUserRef.current =
+      null;
 
     setMessages([]);
 
@@ -649,6 +830,8 @@ function App() {
     setText("");
 
     setSelectedFile(null);
+
+    setUploading(false);
 
   };
 
@@ -661,7 +844,8 @@ function App() {
 
     setSelectedUser(user);
 
-    selectedUserRef.current = user;
+    selectedUserRef.current =
+      user;
 
     setMessages([]);
 
@@ -723,6 +907,30 @@ function App() {
 
 
     // ======================================
+    // CHECK AUTH SESSION
+    // ======================================
+
+    const token =
+      sessionStorage.getItem("token");
+
+    const sessionId =
+      getSessionId();
+
+
+    if (!token || !sessionId) {
+
+      console.error(
+        "❌ Session authentication missing"
+      );
+
+      logout();
+
+      return;
+
+    }
+
+
+    // ======================================
     // SOCKET
     // ======================================
 
@@ -762,7 +970,20 @@ function App() {
 
       const response =
         await fetch(
-          `${API_URL}/api/messages/${roomId}`
+          `${API_URL}/api/messages/${roomId}`,
+          {
+
+            headers: {
+
+              Authorization:
+                `Bearer ${token}`,
+
+              "X-Session-ID":
+                sessionId,
+
+            },
+
+          }
         );
 
 
@@ -794,11 +1015,12 @@ function App() {
                 msg.senderUsername,
 
               text:
-                msg.message || "",
+                msg.message ||
+                "",
 
-              // FILE DATA
               file:
-                msg.file || null,
+                msg.file ||
+                null,
 
               time:
                 new Date(
@@ -806,11 +1028,13 @@ function App() {
                 ).toLocaleTimeString(
                   [],
                   {
+
                     hour:
                       "2-digit",
 
                     minute:
                       "2-digit",
+
                   }
                 ),
 
@@ -847,7 +1071,9 @@ function App() {
 
 
     if (!file) {
+
       return;
+
     }
 
 
@@ -865,7 +1091,8 @@ function App() {
         "File size must be less than 20 MB."
       );
 
-      e.target.value = "";
+      e.target.value =
+        "";
 
       return;
 
@@ -944,12 +1171,43 @@ function App() {
       );
 
 
+      const token =
+        sessionStorage.getItem("token");
+
+      const sessionId =
+        getSessionId();
+
+
+      if (!token || !sessionId) {
+
+        throw new Error(
+          "Authentication session expired."
+        );
+
+      }
+
+
       const response =
         await fetch(
           `${API_URL}/api/files/upload`,
           {
-            method: "POST",
-            body: formData,
+
+            method:
+              "POST",
+
+            headers: {
+
+              Authorization:
+                `Bearer ${token}`,
+
+              "X-Session-ID":
+                sessionId,
+
+            },
+
+            body:
+              formData,
+
           }
         );
 
@@ -1010,6 +1268,22 @@ function App() {
       }
 
 
+      const token =
+        sessionStorage.getItem("token");
+
+      const sessionId =
+        getSessionId();
+
+
+      if (!token || !sessionId) {
+
+        throw new Error(
+          "Authentication session expired."
+        );
+
+      }
+
+
       const fileUrl =
         `${API_URL}${file.fileUrl}`;
 
@@ -1022,7 +1296,20 @@ function App() {
 
       const response =
         await fetch(
-          fileUrl
+          fileUrl,
+          {
+
+            headers: {
+
+              Authorization:
+                `Bearer ${token}`,
+
+              "X-Session-ID":
+                sessionId,
+
+            },
+
+          }
         );
 
 
@@ -1087,6 +1374,7 @@ function App() {
 
 
       alert(
+        error.message ||
         "Unable to download file."
       );
 
@@ -1157,6 +1445,30 @@ function App() {
 
 
     // ======================================
+    // AUTH SESSION CHECK
+    // ======================================
+
+    const token =
+      sessionStorage.getItem("token");
+
+    const sessionId =
+      getSessionId();
+
+
+    if (!token || !sessionId) {
+
+      console.error(
+        "❌ Session expired"
+      );
+
+      logout();
+
+      return;
+
+    }
+
+
+    // ======================================
     // CURRENT USER
     // ======================================
 
@@ -1200,7 +1512,8 @@ function App() {
     // FILE UPLOAD
     // ======================================
 
-    let uploadedFile = null;
+    let uploadedFile =
+      null;
 
 
     if (selectedFile) {
@@ -1245,17 +1558,26 @@ function App() {
     console.log(
       "📤 Sending message:",
       {
+
         roomId,
+
         senderId:
           currentUserId,
+
         receiverId:
           selectedUserId,
+
         username:
           currentUser.username,
+
         message:
           text.trim(),
+
         file:
           uploadedFile,
+
+        sessionId,
+
       }
     );
 
@@ -1278,9 +1600,10 @@ function App() {
         message:
           text.trim(),
 
-        // FILE DATA
         file:
           uploadedFile,
+
+        sessionId,
 
       }
     );
@@ -1334,7 +1657,9 @@ function App() {
   const formatFileSize = (bytes) => {
 
     if (!bytes) {
+
       return "";
+
     }
 
 
@@ -2073,7 +2398,9 @@ function App() {
                   onClick={
                     removeSelectedFile
                   }
-                  disabled={uploading}
+                  disabled={
+                    uploading
+                  }
                 >
 
                   ×
