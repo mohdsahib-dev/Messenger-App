@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+
 import { io } from "socket.io-client";
 import "./App.css";
 
@@ -36,7 +36,25 @@ function App() {
   // ========================================
 
   const [users, setUsers] = useState([]);
+  const [searchText, setSearchText] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
+
+  // ========================================
+  // FILTER USERS
+  // ========================================
+
+  const filteredUsers = users.filter((user) => {
+    const search = searchText.toLowerCase().trim();
+
+    if (!search) {
+      return true;
+    }
+
+    return (
+      user.username?.toLowerCase().includes(search) ||
+      user.email?.toLowerCase().includes(search)
+    );
+  });
 
 
   // ========================================
@@ -1978,7 +1996,12 @@ function App() {
 
         <input
           className="search"
+          type="text"
           placeholder="Search users..."
+          value={searchText}
+          onChange={(e) =>
+            setSearchText(e.target.value)
+          }
         />
 
 
@@ -2002,9 +2025,26 @@ function App() {
 
             </div>
 
+          ) : filteredUsers.length === 0 ? (
+
+            <div
+              style={{
+                padding:
+                  "20px",
+                textAlign:
+                  "center",
+                color:
+                  "#777",
+              }}
+            >
+
+              No users found
+
+            </div>
+
           ) : (
 
-            users.map(
+            filteredUsers.map(
               (user) => {
 
                 const userId =
@@ -2305,18 +2345,40 @@ function App() {
                             {/* DOWNLOAD BUTTON */}
 
                             <button
-                              type="button"
-                              className="download-btn"
-                              onClick={() =>
-                                downloadFile(
-                                  msg.file
-                                )
-                              }
-                            >
-
-                              ⬇ Download
-
-                            </button>
+  type="button"
+  className="download-btn"
+  onClick={() => downloadFile(msg.file)}
+  title="Download"
+  aria-label="Download file"
+>
+  <svg
+    width="22"
+    height="22"
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M12 3V15"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <path
+      d="M7 10L12 15L17 10"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M5 21H19"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </svg>
+</button>
 
                           </div>
 
