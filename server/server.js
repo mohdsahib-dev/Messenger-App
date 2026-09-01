@@ -6,6 +6,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const { Server } = require("socket.io");
 const path = require("path");
+const fs = require("fs");
 
 // ========================================
 // ROUTES
@@ -27,6 +28,21 @@ const app = express();
 const server = http.createServer(app);
 
 // ========================================
+// UPLOADS DIRECTORY
+// ========================================
+
+const uploadsPath = path.join(__dirname, "uploads");
+
+// Create uploads folder if it doesn't exist
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, {
+    recursive: true,
+  });
+
+  console.log("Uploads folder created.");
+}
+
+// ========================================
 // ALLOWED FRONTEND ORIGINS
 // ========================================
 
@@ -42,8 +58,11 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin
-      // Example: Postman, server-to-server requests
+      // Allow requests without an origin
+      // Example:
+      // Postman
+      // Server-to-server requests
+
       if (!origin) {
         return callback(null, true);
       }
@@ -51,6 +70,11 @@ app.use(
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
+
+      console.error(
+        "CORS blocked origin:",
+        origin
+      );
 
       return callback(
         new Error("Not allowed by CORS")
@@ -80,7 +104,9 @@ app.use(express.json());
 // ========================================
 
 // Upload API
-// POST /api/files/upload
+//
+// POST
+// /api/files/upload
 
 app.use(
   "/api/files",
@@ -90,38 +116,42 @@ app.use(
 // ========================================
 // STATIC UPLOADED FILES
 // ========================================
-app.use(
-  "/uploads",
-  express.static("uploads")
-);
-
-// Files inside:
+//
+// Files stored inside:
+//
 // server/uploads/
 //
-// can be accessed using:
+// Can be accessed using:
+//
 // http://localhost:5000/uploads/filename.pdf
+//
+// Production:
+//
+// https://messenger-app-of9j.onrender.com/uploads/filename.pdf
+//
 
 app.use(
   "/uploads",
-  express.static(
-    path.join(__dirname, "uploads")
-  )
+  express.static(uploadsPath)
 );
 
 // ========================================
 // API ROUTES
 // ========================================
 
+// Authentication
 app.use(
   "/api/auth",
   authRoutes
 );
 
+// Users
 app.use(
   "/api/users",
   userRoutes
 );
 
+// Messages
 app.use(
   "/api/messages",
   messageRoutes
@@ -144,10 +174,25 @@ app.get("/", (req, res) => {
 
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://messenger-app-cyan-two.vercel.app",
-    ],
+    origin: function (origin, callback) {
+      // Allow requests without an origin
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.error(
+        "Socket.IO CORS blocked origin:",
+        origin
+      );
+
+      return callback(
+        new Error("Not allowed by Socket.IO CORS")
+      );
+    },
 
     methods: [
       "GET",
@@ -162,26 +207,31 @@ const io = new Server(server, {
 // MONGODB CONNECTION
 // ========================================
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log(
-      "MongoDB Connected Successfully"
-    );
-  })
-  .catch((error) => {
-    console.error(
-      "MongoDB Connection Error:",
-      error.message
-    );
-  });
+if (!process.env.MONGO_URI) {
+  console.error(
+    "ERROR: MONGO_URI is not defined in .env"
+  );
+} else {
+  mongoose
+    .connect(process.env.MONGO_URI)
+    .then(() => {
+      console.log(
+        "MongoDB Connected Successfully"
+      );
+    })
+    .catch((error) => {
+      console.error(
+        "MongoDB Connection Error:",
+        error.message
+      );
+    });
+}
 
 // ========================================
 // SOCKET CONNECTION
 // ========================================
 
 io.on("connection", (socket) => {
-
   console.log(
     "User connected:",
     socket.id
@@ -194,13 +244,26 @@ io.on("connection", (socket) => {
   socket.on(
     "join_room",
     (roomId) => {
+      try {
+        if (!roomId) {
+          console.error(
+            "join_room: roomId is missing"
+          );
 
-      socket.join(roomId);
+          return;
+        }
 
-      console.log(
-        `${socket.id} joined room: ${roomId}`
-      );
+        socket.join(roomId);
 
+        console.log(
+          `${socket.id} joined room: ${roomId}`
+        );
+      } catch (error) {
+        console.error(
+          "Join room error:",
+          error
+        );
+      }
     }
   );
 
@@ -211,40 +274,56 @@ io.on("connection", (socket) => {
   socket.on(
     "send_message",
     async (data) => {
-
       try {
-
         console.log(
           "Message received:",
           data
         );
 
-        // ================================
-        // SAVE MESSAGE
-        // ================================
+        // ==================================
+        // VALIDATE ROOM
+        // ==================================
 
-const newMessage =
-  new Message({
+        if (!data || !data.roomId) {
+          socket.emit(
+            "message_error",
+            {
+              message:
+                "Room ID is required.",
+            }
+          );
 
-    roomId:
-      data.roomId,
+          return;
+        }
 
-    senderId:
-      data.senderId,
+        // ==================================
+        // CREATE MESSAGE
+        // ==================================
 
-    senderUsername:
-      data.username,
+        const newMessage =
+          new Message({
+            roomId:
+              data.roomId,
 
-    receiverId:
-      data.receiverId,
+            senderId:
+              data.senderId,
 
-    message:
-      data.message || "",
+            senderUsername:
+              data.username,
 
-    file:
-      data.file || null,
+            receiverId:
+              data.receiverId,
 
-  });
+            message:
+              data.message || "",
+
+            file:
+              data.file || null,
+          });
+
+        // ==================================
+        // SAVE MESSAGE TO MONGODB
+        // ==================================
 
         const savedMessage =
           await newMessage.save();
@@ -254,43 +333,48 @@ const newMessage =
           savedMessage._id
         );
 
-        // ================================
+        // ==================================
+        // PREPARE MESSAGE RESPONSE
+        // ==================================
+
+        const messageData = {
+          _id:
+            savedMessage._id,
+
+          roomId:
+            savedMessage.roomId,
+
+          senderId:
+            savedMessage.senderId,
+
+          receiverId:
+            savedMessage.receiverId,
+
+          username:
+            savedMessage.senderUsername,
+
+          message:
+            savedMessage.message,
+
+          file:
+            savedMessage.file || null,
+
+          timestamp:
+            savedMessage.createdAt,
+        };
+
+        // ==================================
         // SEND MESSAGE TO ROOM
-        // ================================
+        // ==================================
 
-io
-  .to(data.roomId)
-  .emit(
-    "receive_message",
-    {
-      _id:
-        savedMessage._id,
-
-      roomId:
-        savedMessage.roomId,
-
-      senderId:
-        savedMessage.senderId,
-
-      receiverId:
-        savedMessage.receiverId,
-
-      username:
-        savedMessage.senderUsername,
-
-      message:
-        savedMessage.message,
-
-      file:
-        savedMessage.file || null,
-
-      timestamp:
-        savedMessage.createdAt,
-    }
-  );
+        io
+          .to(data.roomId)
+          .emit(
+            "receive_message",
+            messageData
+          );
 
       } catch (error) {
-
         console.error(
           "Message save error:",
           error
@@ -303,9 +387,7 @@ io
               "Message could not be saved.",
           }
         );
-
       }
-
     }
   );
 
@@ -315,16 +397,15 @@ io
 
   socket.on(
     "disconnect",
-    () => {
-
+    (reason) => {
       console.log(
         "User disconnected:",
-        socket.id
+        socket.id,
+        "Reason:",
+        reason
       );
-
     }
   );
-
 });
 
 // ========================================
@@ -337,10 +418,12 @@ const PORT =
 server.listen(
   PORT,
   () => {
-
     console.log(
       `Server running on port ${PORT}`
     );
 
+    console.log(
+      `Uploads directory: ${uploadsPath}`
+    );
   }
 );

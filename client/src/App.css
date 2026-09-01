@@ -461,3 +461,26 @@ body {
   }
 
 }
+.file-upload-btn {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: #f0f2f5;
+  color: #333;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: 0.2s ease;
+}
+
+.file-upload-btn:hover {
+  background: #e4e6eb;
+  transform: scale(1.05);
+}

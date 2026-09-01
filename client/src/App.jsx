@@ -56,6 +56,14 @@ function App() {
 
 
   // ========================================
+  // BACKEND URL
+  // ========================================
+
+  const API_URL =
+    "https://messenger-app-of9j.onrender.com";
+
+
+  // ========================================
   // CURRENT USER
   // ========================================
 
@@ -102,14 +110,22 @@ function App() {
       return;
     }
 
-    console.log("🔌 Connecting Socket.IO...");
+
+    console.log(
+      "🔌 Connecting Socket.IO..."
+    );
+
 
     const newSocket = io(
-      "https://messenger-app-of9j.onrender.com",
+      API_URL,
       {
-        transports: ["websocket", "polling"],
+        transports: [
+          "websocket",
+          "polling",
+        ],
       }
     );
+
 
     socketRef.current = newSocket;
 
@@ -118,58 +134,66 @@ function App() {
     // SOCKET CONNECTED
     // ======================================
 
-    newSocket.on("connect", () => {
+    newSocket.on(
+      "connect",
+      () => {
 
-      console.log(
-        "✅ Socket connected:",
-        newSocket.id
-      );
+        console.log(
+          "✅ Socket connected:",
+          newSocket.id
+        );
 
-      const currentUser =
-        getCurrentUser();
 
-      const selectedUser =
-        selectedUserRef.current;
+        const currentUser =
+          getCurrentUser();
 
-      if (
-        currentUser &&
-        selectedUser
-      ) {
+        const selectedUser =
+          selectedUserRef.current;
 
-        const currentUserId =
-          currentUser._id ||
-          currentUser.id;
-
-        const selectedUserId =
-          selectedUser._id ||
-          selectedUser.id;
 
         if (
-          currentUserId &&
-          selectedUserId
+          currentUser &&
+          selectedUser
         ) {
 
-          const roomId =
-            createRoomId(
-              currentUserId,
-              selectedUserId
+          const currentUserId =
+            currentUser._id ||
+            currentUser.id;
+
+          const selectedUserId =
+            selectedUser._id ||
+            selectedUser.id;
+
+
+          if (
+            currentUserId &&
+            selectedUserId
+          ) {
+
+            const roomId =
+              createRoomId(
+                currentUserId,
+                selectedUserId
+              );
+
+
+            console.log(
+              "🔄 Rejoining room:",
+              roomId
             );
 
-          console.log(
-            "🔄 Rejoining room:",
-            roomId
-          );
 
-          newSocket.emit(
-            "join_room",
-            roomId
-          );
+            newSocket.emit(
+              "join_room",
+              roomId
+            );
+
+          }
 
         }
 
       }
-
-    });
+    );
 
 
     // ======================================
@@ -202,11 +226,13 @@ function App() {
           data
         );
 
+
         const currentUser =
           getCurrentUser();
 
         const selectedUser =
           selectedUserRef.current;
+
 
         if (
           !currentUser ||
@@ -217,6 +243,7 @@ function App() {
 
         }
 
+
         const currentUserId =
           currentUser._id ||
           currentUser.id;
@@ -225,11 +252,21 @@ function App() {
           selectedUser._id ||
           selectedUser.id;
 
+
+        // ==================================
+        // CURRENT CHAT ROOM
+        // ==================================
+
         const currentRoomId =
           createRoomId(
             currentUserId,
             selectedUserId
           );
+
+
+        // ==================================
+        // IGNORE OTHER CHAT MESSAGES
+        // ==================================
 
         if (
           String(data.roomId) !==
@@ -268,8 +305,9 @@ function App() {
             data.username,
 
           text:
-            data.message,
+            data.message || "",
 
+          // FILE DATA
           file:
             data.file || null,
 
@@ -279,8 +317,11 @@ function App() {
             ).toLocaleTimeString(
               [],
               {
-                hour: "2-digit",
-                minute: "2-digit",
+                hour:
+                  "2-digit",
+
+                minute:
+                  "2-digit",
               }
             ),
 
@@ -291,26 +332,31 @@ function App() {
         // ADD MESSAGE
         // ==================================
 
-        setMessages((prev) => {
+        setMessages(
+          (prev) => {
 
-          if (
-            prev.some(
-              (msg) =>
-                String(msg._id) ===
-                String(formattedMessage._id)
-            )
-          ) {
+            if (
+              prev.some(
+                (msg) =>
+                  String(msg._id) ===
+                  String(
+                    formattedMessage._id
+                  )
+              )
+            ) {
 
-            return prev;
+              return prev;
+
+            }
+
+
+            return [
+              ...prev,
+              formattedMessage,
+            ];
 
           }
-
-          return [
-            ...prev,
-            formattedMessage,
-          ];
-
-        });
+        );
 
       }
     );
@@ -327,6 +373,11 @@ function App() {
         console.error(
           "❌ Message error:",
           data.message
+        );
+
+        alert(
+          data.message ||
+          "Message could not be sent."
         );
 
       }
@@ -360,6 +411,7 @@ function App() {
         "🔌 Cleaning Socket.IO connection..."
       );
 
+
       newSocket.disconnect();
 
       socketRef.current = null;
@@ -380,13 +432,16 @@ function App() {
       const currentUser =
         getCurrentUser();
 
+
       if (!currentUser) {
         return;
       }
 
+
       const currentUserId =
         currentUser._id ||
         currentUser.id;
+
 
       if (!currentUserId) {
 
@@ -398,15 +453,18 @@ function App() {
 
       }
 
+
       try {
 
         const response =
           await fetch(
-            `https://messenger-app-of9j.onrender.com/api/users/${currentUserId}`
+            `${API_URL}/api/users/${currentUserId}`
           );
+
 
         const data =
           await response.json();
+
 
         if (!response.ok) {
 
@@ -417,6 +475,7 @@ function App() {
           return;
 
         }
+
 
         if (data.success) {
 
@@ -457,10 +516,12 @@ function App() {
 
     setMessage("");
 
+
     const endpoint =
       isLogin
-        ? "https://messenger-app-of9j.onrender.com/api/auth/login"
-        : "https://messenger-app-of9j.onrender.com/api/auth/register";
+        ? `${API_URL}/api/auth/login`
+        : `${API_URL}/api/auth/register`;
+
 
     const body =
       isLogin
@@ -473,6 +534,7 @@ function App() {
             email,
             password,
           };
+
 
     try {
 
@@ -492,8 +554,10 @@ function App() {
           }
         );
 
+
       const data =
         await response.json();
+
 
       if (!response.ok) {
 
@@ -506,10 +570,12 @@ function App() {
 
       }
 
+
       localStorage.setItem(
         "token",
         data.token
       );
+
 
       localStorage.setItem(
         "user",
@@ -518,10 +584,12 @@ function App() {
         )
       );
 
+
       setMessage(
         data.message ||
         "Authentication successful"
       );
+
 
       setPassword("");
 
@@ -533,6 +601,7 @@ function App() {
         "Authentication error:",
         error
       );
+
 
       setMessage(
         "Cannot connect to server"
@@ -557,6 +626,7 @@ function App() {
       "user"
     );
 
+
     if (socketRef.current) {
 
       socketRef.current.disconnect();
@@ -564,6 +634,7 @@ function App() {
       socketRef.current = null;
 
     }
+
 
     setIsLoggedIn(false);
 
@@ -578,8 +649,6 @@ function App() {
     setText("");
 
     setSelectedFile(null);
-
-    setUploading(false);
 
   };
 
@@ -596,10 +665,10 @@ function App() {
 
     setMessages([]);
 
-    setSelectedFile(null);
 
     const currentUser =
       getCurrentUser();
+
 
     if (!currentUser) {
 
@@ -611,13 +680,16 @@ function App() {
 
     }
 
+
     const currentUserId =
       currentUser._id ||
       currentUser.id;
 
+
     const selectedUserId =
       user._id ||
       user.id;
+
 
     if (
       !currentUserId ||
@@ -632,19 +704,31 @@ function App() {
 
     }
 
+
+    // ======================================
+    // CREATE ROOM
+    // ======================================
+
     const roomId =
       createRoomId(
         currentUserId,
         selectedUserId
       );
 
+
     console.log(
       "🏠 Room ID:",
       roomId
     );
 
+
+    // ======================================
+    // SOCKET
+    // ======================================
+
     const socket =
       socketRef.current;
+
 
     if (
       !socket ||
@@ -659,18 +743,13 @@ function App() {
 
     }
 
-    console.log(
-      "🚪 Joining room:",
-      roomId
-    );
+
+    // ======================================
+    // JOIN ROOM
+    // ======================================
 
     socket.emit(
       "join_room",
-      roomId
-    );
-
-    console.log(
-      "✅ Join room event sent:",
       roomId
     );
 
@@ -683,11 +762,13 @@ function App() {
 
       const response =
         await fetch(
-          `https://messenger-app-of9j.onrender.com/api/messages/${roomId}`
+          `${API_URL}/api/messages/${roomId}`
         );
+
 
       const data =
         await response.json();
+
 
       if (
         data.success
@@ -713,8 +794,9 @@ function App() {
                 msg.senderUsername,
 
               text:
-                msg.message,
+                msg.message || "",
 
+              // FILE DATA
               file:
                 msg.file || null,
 
@@ -735,6 +817,7 @@ function App() {
             })
           );
 
+
         setMessages(
           formattedMessages
         );
@@ -754,28 +837,32 @@ function App() {
 
 
   // ========================================
-  // FILE SELECT
+  // SELECT FILE
   // ========================================
 
   const handleFileSelect = (e) => {
 
     const file =
-      e.target.files[0];
+      e.target.files?.[0];
+
 
     if (!file) {
       return;
     }
 
-    // Maximum 20 MB
+
+    // ======================================
+    // MAX FILE SIZE = 20 MB
+    // ======================================
+
     const maxSize =
       20 * 1024 * 1024;
 
-    if (
-      file.size > maxSize
-    ) {
+
+    if (file.size > maxSize) {
 
       alert(
-        "File size cannot exceed 20 MB."
+        "File size must be less than 20 MB."
       );
 
       e.target.value = "";
@@ -784,12 +871,51 @@ function App() {
 
     }
 
+
     setSelectedFile(file);
 
     console.log(
       "📎 Selected file:",
-      file
+      file.name
     );
+
+  };
+
+
+  // ========================================
+  // OPEN FILE SELECTOR
+  // ========================================
+
+  const handleFileClick = () => {
+
+    if (
+      fileInputRef.current
+    ) {
+
+      fileInputRef.current.click();
+
+    }
+
+  };
+
+
+  // ========================================
+  // REMOVE SELECTED FILE
+  // ========================================
+
+  const removeSelectedFile = () => {
+
+    setSelectedFile(null);
+
+
+    if (
+      fileInputRef.current
+    ) {
+
+      fileInputRef.current.value =
+        "";
+
+    }
 
   };
 
@@ -798,35 +924,39 @@ function App() {
   // UPLOAD FILE
   // ========================================
 
-  const uploadFile = async () => {
-
-    if (!selectedFile) {
-      return null;
-    }
+  const uploadFile = async (file) => {
 
     try {
-
-      setUploading(true);
 
       const formData =
         new FormData();
 
+
       formData.append(
         "file",
-        selectedFile
+        file
       );
+
+
+      console.log(
+        "📤 Uploading file:",
+        file.name
+      );
+
 
       const response =
         await fetch(
-          "https://messenger-app-of9j.onrender.com/api/files/upload",
+          `${API_URL}/api/files/upload`,
           {
             method: "POST",
             body: formData,
           }
         );
 
+
       const data =
         await response.json();
+
 
       if (!response.ok) {
 
@@ -837,10 +967,12 @@ function App() {
 
       }
 
+
       console.log(
         "✅ File uploaded:",
-        data
+        data.file
       );
+
 
       return data.file;
 
@@ -851,16 +983,112 @@ function App() {
         error
       );
 
-      alert(
-        error.message ||
-        "File upload failed"
+      throw error;
+
+    }
+
+  };
+
+
+  // ========================================
+  // DOWNLOAD FILE
+  // ========================================
+
+  const downloadFile = async (file) => {
+
+    try {
+
+      if (
+        !file ||
+        !file.fileUrl
+      ) {
+
+        throw new Error(
+          "File URL not found"
+        );
+
+      }
+
+
+      const fileUrl =
+        `${API_URL}${file.fileUrl}`;
+
+
+      console.log(
+        "⬇️ Downloading:",
+        fileUrl
       );
 
-      return null;
 
-    } finally {
+      const response =
+        await fetch(
+          fileUrl
+        );
 
-      setUploading(false);
+
+      if (!response.ok) {
+
+        throw new Error(
+          "File download failed"
+        );
+
+      }
+
+
+      const blob =
+        await response.blob();
+
+
+      const blobUrl =
+        window.URL.createObjectURL(
+          blob
+        );
+
+
+      const link =
+        document.createElement(
+          "a"
+        );
+
+
+      link.href =
+        blobUrl;
+
+
+      link.download =
+        file.originalName ||
+        "download";
+
+
+      document.body.appendChild(
+        link
+      );
+
+
+      link.click();
+
+
+      document.body.removeChild(
+        link
+      );
+
+
+      window.URL.revokeObjectURL(
+        blobUrl
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "❌ File download error:",
+        error
+      );
+
+
+      alert(
+        "Unable to download file."
+      );
 
     }
 
@@ -873,15 +1101,9 @@ function App() {
 
   const sendMessage = async () => {
 
-    // Text OR file required
-    if (
-      !text.trim() &&
-      !selectedFile
-    ) {
-
-      return;
-
-    }
+    // ======================================
+    // SELECTED USER CHECK
+    // ======================================
 
     if (!selectedUser) {
 
@@ -893,8 +1115,28 @@ function App() {
 
     }
 
+
+    // ======================================
+    // TEXT + FILE CHECK
+    // ======================================
+
+    if (
+      !text.trim() &&
+      !selectedFile
+    ) {
+
+      return;
+
+    }
+
+
+    // ======================================
+    // SOCKET CHECK
+    // ======================================
+
     const socket =
       socketRef.current;
+
 
     if (
       !socket ||
@@ -905,12 +1147,22 @@ function App() {
         "❌ Socket not connected"
       );
 
+      alert(
+        "Connection to server lost. Please try again."
+      );
+
       return;
 
     }
 
+
+    // ======================================
+    // CURRENT USER
+    // ======================================
+
     const currentUser =
       getCurrentUser();
+
 
     if (!currentUser) {
 
@@ -922,13 +1174,20 @@ function App() {
 
     }
 
+
     const currentUserId =
       currentUser._id ||
       currentUser.id;
 
+
     const selectedUserId =
       selectedUser._id ||
       selectedUser.id;
+
+
+    // ======================================
+    // ROOM ID
+    // ======================================
 
     const roomId =
       createRoomId(
@@ -938,27 +1197,49 @@ function App() {
 
 
     // ======================================
-    // UPLOAD FILE FIRST
+    // FILE UPLOAD
     // ======================================
 
     let uploadedFile = null;
 
+
     if (selectedFile) {
 
-      uploadedFile =
-        await uploadFile();
+      try {
 
-      if (!uploadedFile) {
+        setUploading(true);
+
+
+        uploadedFile =
+          await uploadFile(
+            selectedFile
+          );
+
+      } catch (error) {
+
+        console.error(
+          "❌ Could not upload file:",
+          error
+        );
+
+        alert(
+          error.message ||
+          "File upload failed."
+        );
+
+        setUploading(false);
 
         return;
 
       }
 
+      setUploading(false);
+
     }
 
 
     // ======================================
-    // SEND MESSAGE
+    // SEND MESSAGE THROUGH SOCKET
     // ======================================
 
     console.log(
@@ -978,6 +1259,7 @@ function App() {
       }
     );
 
+
     socket.emit(
       "send_message",
       {
@@ -996,6 +1278,7 @@ function App() {
         message:
           text.trim(),
 
+        // FILE DATA
         file:
           uploadedFile,
 
@@ -1004,18 +1287,20 @@ function App() {
 
 
     // ======================================
-    // CLEAR
+    // CLEAR INPUT
     // ======================================
 
     setText("");
 
     setSelectedFile(null);
 
+
     if (
       fileInputRef.current
     ) {
 
-      fileInputRef.current.value = "";
+      fileInputRef.current.value =
+        "";
 
     }
 
@@ -1029,7 +1314,8 @@ function App() {
   const handleMessageKeyDown = (e) => {
 
     if (
-      e.key === "Enter"
+      e.key === "Enter" &&
+      !e.shiftKey
     ) {
 
       e.preventDefault();
@@ -1042,7 +1328,7 @@ function App() {
 
 
   // ========================================
-  // FORMAT FILE SIZE
+  // FILE SIZE FORMAT
   // ========================================
 
   const formatFileSize = (bytes) => {
@@ -1051,6 +1337,7 @@ function App() {
       return "";
     }
 
+
     if (
       bytes < 1024
     ) {
@@ -1058,6 +1345,7 @@ function App() {
       return `${bytes} B`;
 
     }
+
 
     if (
       bytes < 1024 * 1024
@@ -1069,6 +1357,7 @@ function App() {
 
     }
 
+
     return `${(
       bytes /
       (1024 * 1024)
@@ -1078,7 +1367,7 @@ function App() {
 
 
   // ========================================
-  // GET FILE ICON
+  // FILE ICON
   // ========================================
 
   const getFileIcon = (fileType) => {
@@ -1093,14 +1382,16 @@ function App() {
 
     }
 
+
     if (
       fileType ===
-      "application/pdf"
+        "application/pdf"
     ) {
 
       return "📕";
 
     }
+
 
     if (
       fileType?.includes(
@@ -1108,12 +1399,16 @@ function App() {
       ) ||
       fileType?.includes(
         "excel"
+      ) ||
+      fileType?.includes(
+        "csv"
       )
     ) {
 
       return "📊";
 
     }
+
 
     if (
       fileType?.includes(
@@ -1125,128 +1420,22 @@ function App() {
 
     }
 
+
     if (
       fileType?.includes(
         "zip"
+      ) ||
+      fileType?.includes(
+        "compressed"
       )
     ) {
 
-      return "📦";
+      return "🗜️";
 
     }
+
 
     return "📄";
-
-  };
-
-
-  // ========================================
-  // RENDER FILE
-  // ========================================
-
-  const renderFile = (file) => {
-
-    if (!file) {
-      return null;
-    }
-
-    const fileUrl =
-      `https://messenger-app-of9j.onrender.com${file.fileUrl}`;
-
-
-    // ======================================
-    // IMAGE
-    // ======================================
-
-    if (
-      file.fileType?.startsWith(
-        "image/"
-      )
-    ) {
-
-      return (
-
-        <div className="chat-file image-file">
-
-          <img
-            src={fileUrl}
-            alt={
-              file.originalName
-            }
-            className="chat-image"
-          />
-
-          <a
-            href={fileUrl}
-            download={
-              file.originalName
-            }
-            target="_blank"
-            rel="noreferrer"
-          >
-            Download
-          </a>
-
-        </div>
-
-      );
-
-    }
-
-
-    // ======================================
-    // OTHER FILES
-    // ======================================
-
-    return (
-
-      <div className="chat-file">
-
-        <div className="file-icon">
-
-          {getFileIcon(
-            file.fileType
-          )}
-
-        </div>
-
-        <div className="file-details">
-
-          <div className="file-name">
-
-            {
-              file.originalName
-            }
-
-          </div>
-
-          <div className="file-size">
-
-            {
-              formatFileSize(
-                file.fileSize
-              )
-            }
-
-          </div>
-
-        </div>
-
-        <a
-          href={fileUrl}
-          download={
-            file.originalName
-          }
-          target="_blank"
-          rel="noreferrer"
-          className="download-button"
-        >
-          Download
-        </a>
-
-      </div>
-
-    );
 
   };
 
@@ -1267,9 +1456,11 @@ function App() {
             💬
           </div>
 
+
           <h1>
             Messenger
           </h1>
+
 
           <p className="subtitle">
 
@@ -1278,6 +1469,7 @@ function App() {
               : "Create your messenger account"}
 
           </p>
+
 
           <form
             onSubmit={
@@ -1303,6 +1495,7 @@ function App() {
 
             )}
 
+
             <input
               type="email"
               placeholder="Email"
@@ -1316,6 +1509,7 @@ function App() {
               }
               required
             />
+
 
             <input
               type="password"
@@ -1331,6 +1525,7 @@ function App() {
               required
             />
 
+
             <button
               type="submit"
             >
@@ -1343,6 +1538,7 @@ function App() {
 
           </form>
 
+
           {message && (
 
             <p className="auth-message">
@@ -1350,6 +1546,7 @@ function App() {
             </p>
 
           )}
+
 
           <div className="switch-auth">
 
@@ -1439,6 +1636,7 @@ function App() {
             Messenger
           </h2>
 
+
           <button
             className="logout"
             onClick={
@@ -1452,10 +1650,12 @@ function App() {
 
         </div>
 
+
         <input
           className="search"
           placeholder="Search users..."
         />
+
 
         <div className="user-list">
 
@@ -1486,9 +1686,11 @@ function App() {
                   user._id ||
                   user.id;
 
+
                 const selectedId =
                   selectedUser?._id ||
                   selectedUser?.id;
+
 
                 return (
 
@@ -1497,8 +1699,12 @@ function App() {
                       userId
                     }
                     className={`user ${
-                      selectedId ===
-                      userId
+                      String(
+                        selectedId
+                      ) ===
+                      String(
+                        userId
+                      )
                         ? "active"
                         : ""
                     }`}
@@ -1519,6 +1725,7 @@ function App() {
 
                     </div>
 
+
                     <div className="user-info">
 
                       <div className="user-name">
@@ -1530,6 +1737,7 @@ function App() {
                         <span className="online-dot"></span>
 
                       </div>
+
 
                       <div className="last-message">
 
@@ -1569,10 +1777,12 @@ function App() {
               💬
             </div>
 
+
             <h2>
               Welcome to
               Messenger
             </h2>
+
 
             <p>
               Select a user
@@ -1586,7 +1796,9 @@ function App() {
 
           <>
 
-            {/* CHAT HEADER */}
+            {/* ==============================
+                CHAT HEADER
+            ============================== */}
 
             <header className="chat-header">
 
@@ -1600,6 +1812,7 @@ function App() {
                   .toUpperCase()}
 
               </div>
+
 
               <div>
 
@@ -1618,7 +1831,9 @@ function App() {
             </header>
 
 
-            {/* MESSAGES */}
+            {/* ==============================
+                MESSAGES
+            ============================== */}
 
             <div className="messages">
 
@@ -1642,9 +1857,11 @@ function App() {
                   const currentUser =
                     getCurrentUser();
 
+
                   const currentUserId =
                     currentUser?._id ||
                     currentUser?.id;
+
 
                   const isMine =
                     String(
@@ -1653,6 +1870,7 @@ function App() {
                     String(
                       currentUserId
                     );
+
 
                   return (
 
@@ -1671,8 +1889,9 @@ function App() {
 
                       <div className="message">
 
-
-                        {/* TEXT */}
+                        {/* ==========================
+                            TEXT MESSAGE
+                        ========================== */}
 
                         {msg.text && (
 
@@ -1685,18 +1904,103 @@ function App() {
                         )}
 
 
-                        {/* FILE */}
+                        {/* ==========================
+                            FILE MESSAGE
+                        ========================== */}
 
                         {msg.file && (
 
-                          renderFile(
-                            msg.file
-                          )
+                          <div className="file-message">
+
+                            {/* IMAGE PREVIEW */}
+
+                            {msg.file.fileType?.startsWith(
+                              "image/"
+                            ) ? (
+
+                              <div className="image-file-preview">
+
+                                <img
+                                  src={
+                                    `${API_URL}${msg.file.fileUrl}`
+                                  }
+                                  alt={
+                                    msg.file.originalName ||
+                                    "Image"
+                                  }
+                                  className="chat-image"
+                                />
+
+                              </div>
+
+                            ) : (
+
+                              <div className="file-info">
+
+                                <div className="file-icon">
+
+                                  {
+                                    getFileIcon(
+                                      msg.file.fileType
+                                    )
+                                  }
+
+                                </div>
+
+
+                                <div className="file-details">
+
+                                  <strong>
+
+                                    {
+                                      msg.file.originalName ||
+                                      "File"
+                                    }
+
+                                  </strong>
+
+
+                                  <small>
+
+                                    {
+                                      formatFileSize(
+                                        msg.file.fileSize
+                                      )
+                                    }
+
+                                  </small>
+
+                                </div>
+
+                              </div>
+
+                            )}
+
+
+                            {/* DOWNLOAD BUTTON */}
+
+                            <button
+                              type="button"
+                              className="download-btn"
+                              onClick={() =>
+                                downloadFile(
+                                  msg.file
+                                )
+                              }
+                            >
+
+                              ⬇ Download
+
+                            </button>
+
+                          </div>
 
                         )}
 
 
-                        {/* TIME */}
+                        {/* ==========================
+                            TIME
+                        ========================== */}
 
                         <span>
                           {
@@ -1716,51 +2020,63 @@ function App() {
             </div>
 
 
-            {/* SELECTED FILE PREVIEW */}
+            {/* ==============================
+                SELECTED FILE PREVIEW
+            ============================== */}
 
             {selectedFile && (
 
               <div className="selected-file">
 
-                <span>
+                <div className="selected-file-info">
 
-                  📎{" "}
-                  {
-                    selectedFile.name
-                  }
+                  <span className="selected-file-icon">
 
-                  {" "}
-                  (
-                  {
-                    formatFileSize(
-                      selectedFile.size
-                    )
-                  }
-                  )
+                    {
+                      getFileIcon(
+                        selectedFile.type
+                      )
+                    }
 
-                </span>
+                  </span>
+
+
+                  <div>
+
+                    <strong>
+
+                      {
+                        selectedFile.name
+                      }
+
+                    </strong>
+
+
+                    <small>
+
+                      {
+                        formatFileSize(
+                          selectedFile.size
+                        )
+                      }
+
+                    </small>
+
+                  </div>
+
+                </div>
+
 
                 <button
                   type="button"
-                  onClick={() => {
-
-                    setSelectedFile(
-                      null
-                    );
-
-                    if (
-                      fileInputRef.current
-                    ) {
-
-                      fileInputRef.current.value =
-                        "";
-
-                    }
-
-                  }}
+                  className="remove-file-btn"
+                  onClick={
+                    removeSelectedFile
+                  }
+                  disabled={uploading}
                 >
 
-                  ✕
+                  ×
 
                 </button>
 
@@ -1769,7 +2085,9 @@ function App() {
             )}
 
 
-            {/* INPUT */}
+            {/* ==============================
+                INPUT
+            ============================== */}
 
             <div className="message-input">
 
@@ -1780,29 +2098,31 @@ function App() {
                   fileInputRef
                 }
                 type="file"
-                hidden
                 onChange={
                   handleFileSelect
                 }
+                style={{
+                  display:
+                    "none",
+                }}
               />
 
 
-              {/* ATTACH BUTTON */}
+              {/* PLUS BUTTON */}
 
               <button
                 type="button"
-                onClick={() => {
-
-                  fileInputRef.current?.click();
-
-                }}
+                className="file-upload-btn"
+                onClick={
+                  handleFileClick
+                }
                 disabled={
                   uploading
                 }
                 title="Attach file"
               >
 
-                📎
+                +
 
               </button>
 
@@ -1811,7 +2131,11 @@ function App() {
 
               <input
                 type="text"
-                placeholder="Type a message..."
+                placeholder={
+                  selectedFile
+                    ? "Add a message (optional)..."
+                    : "Type a message..."
+                }
                 value={
                   text
                 }
@@ -1836,7 +2160,11 @@ function App() {
                   sendMessage
                 }
                 disabled={
-                  uploading
+                  uploading ||
+                  (
+                    !text.trim() &&
+                    !selectedFile
+                  )
                 }
               >
 
@@ -1861,4 +2189,3 @@ function App() {
 }
 
 export default App;
-
