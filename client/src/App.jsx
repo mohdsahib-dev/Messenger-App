@@ -39,12 +39,15 @@ function App() {
   const [searchText, setSearchText] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
 
+
   // ========================================
   // FILTER USERS
   // ========================================
 
   const filteredUsers = users.filter((user) => {
-    const search = searchText.toLowerCase().trim();
+
+    const search =
+      searchText.toLowerCase().trim();
 
     if (!search) {
       return true;
@@ -54,6 +57,7 @@ function App() {
       user.username?.toLowerCase().includes(search) ||
       user.email?.toLowerCase().includes(search)
     );
+
   });
 
 
@@ -149,9 +153,7 @@ function App() {
   useEffect(() => {
 
     if (!isLoggedIn) {
-
       return;
-
     }
 
 
@@ -177,23 +179,27 @@ function App() {
     }
 
 
+    // ======================================
+    // GET CURRENT USER
+    // ======================================
+
     const currentUser =
-  getCurrentUser();
+      getCurrentUser();
 
-const userId =
-  currentUser?._id ||
-  currentUser?.id;
+    const userId =
+      currentUser?._id ||
+      currentUser?.id;
 
 
-if (!userId) {
+    if (!userId) {
 
-  console.error(
-    "❌ User ID missing"
-  );
+      console.error(
+        "❌ User ID missing"
+      );
 
-  return;
+      return;
 
-}
+    }
 
 
     console.log(
@@ -537,9 +543,7 @@ if (!userId) {
 
 
       if (!currentUser) {
-
         return;
-
       }
 
 
@@ -561,7 +565,6 @@ if (!userId) {
 
       const token =
         sessionStorage.getItem("token");
-
 
       const sessionId =
         getSessionId();
@@ -655,14 +658,6 @@ if (!userId) {
 
 
     // ======================================
-    // CREATE UNIQUE SESSION FOR THIS LOGIN
-    // ======================================
-
-    const sessionId =
-      crypto.randomUUID();
-
-
-    // ======================================
     // API ENDPOINT
     // ======================================
 
@@ -675,28 +670,24 @@ if (!userId) {
     // ======================================
     // REQUEST BODY
     // ======================================
+    //
+    // IMPORTANT:
+    // Session ID is NOT generated on frontend.
+    //
+    // Backend is responsible for creating
+    // or reusing the session ID.
+    //
 
     const body =
       isLogin
         ? {
-
             email,
-
             password,
-
-            sessionId,
-
           }
         : {
-
             username,
-
             email,
-
             password,
-
-            sessionId,
-
           };
 
 
@@ -747,7 +738,26 @@ if (!userId) {
 
 
       // ====================================
-      // SAVE SESSION
+      // VERIFY SERVER SESSION
+      // ====================================
+
+      if (!data.sessionId) {
+
+        console.error(
+          "❌ Server did not return session ID"
+        );
+
+        setMessage(
+          "Server did not return a session ID"
+        );
+
+        return;
+
+      }
+
+
+      // ====================================
+      // SAVE SERVER SESSION
       // ====================================
 
       sessionStorage.setItem(
@@ -764,9 +774,18 @@ if (!userId) {
       );
 
 
+      // IMPORTANT:
+      // Save session ID returned by backend
+
       sessionStorage.setItem(
         "sessionId",
-        sessionId
+        data.sessionId
+      );
+
+
+      console.log(
+        "✅ Server session ID:",
+        data.sessionId
       );
 
 
@@ -894,7 +913,6 @@ if (!userId) {
     const currentUserId =
       currentUser._id ||
       currentUser.id;
-
 
     const selectedUserId =
       user._id ||
@@ -1097,9 +1115,7 @@ if (!userId) {
 
 
     if (!file) {
-
       return;
-
     }
 
 
@@ -1517,7 +1533,6 @@ if (!userId) {
       currentUser._id ||
       currentUser.id;
 
-
     const selectedUserId =
       selectedUser._id ||
       selectedUser.id;
@@ -1581,42 +1596,42 @@ if (!userId) {
     // SEND MESSAGE THROUGH SOCKET
     // ======================================
 
-      console.log(
-        "📤 Sending message:",
-        {
+    console.log(
+      "📤 Sending message:",
+      {
 
-          roomId,
+        roomId,
 
-          receiverId:
-            selectedUserId,
+        receiverId:
+          selectedUserId,
 
-          message:
-            text.trim(),
+        message:
+          text.trim(),
 
-          file:
-            uploadedFile,
+        file:
+          uploadedFile,
 
-        }
-      );
+      }
+    );
 
 
-      socket.emit(
-        "send_message",
-        {
+    socket.emit(
+      "send_message",
+      {
 
-          roomId,
+        roomId,
 
-          receiverId:
-            selectedUserId,
+        receiverId:
+          selectedUserId,
 
-          message:
-            text.trim(),
+        message:
+          text.trim(),
 
-          file:
-            uploadedFile,
+        file:
+          uploadedFile,
 
-        }
-      );
+      }
+    );
 
 
     // ======================================
@@ -1667,9 +1682,7 @@ if (!userId) {
   const formatFileSize = (bytes) => {
 
     if (!bytes) {
-
       return "";
-
     }
 
 
@@ -2337,40 +2350,50 @@ if (!userId) {
                             {/* DOWNLOAD BUTTON */}
 
                             <button
-  type="button"
-  className="download-btn"
-  onClick={() => downloadFile(msg.file)}
-  title="Download"
-  aria-label="Download file"
->
-  <svg
-    width="22"
-    height="22"
-    viewBox="0 0 24 24"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path
-      d="M12 3V15"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    />
-    <path
-      d="M7 10L12 15L17 10"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M5 21H19"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    />
-  </svg>
-</button>
+                              type="button"
+                              className="download-btn"
+                              onClick={() =>
+                                downloadFile(
+                                  msg.file
+                                )
+                              }
+                              title="Download"
+                              aria-label="Download file"
+                            >
+
+                              <svg
+                                width="22"
+                                height="22"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+
+                                <path
+                                  d="M12 3V15"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                />
+
+                                <path
+                                  d="M7 10L12 15L17 10"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+
+                                <path
+                                  d="M5 21H19"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                />
+
+                              </svg>
+
+                            </button>
 
                           </div>
 
