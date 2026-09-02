@@ -114,27 +114,14 @@ function App() {
 
 
   // ========================================
-  // GET / CREATE SESSION ID
+  // GET SESSION ID
   // ========================================
 
   const getSessionId = () => {
 
-    let sessionId =
-      sessionStorage.getItem("sessionId");
-
-    if (!sessionId) {
-
-      sessionId =
-        crypto.randomUUID();
-
-      sessionStorage.setItem(
-        "sessionId",
-        sessionId
-      );
-
-    }
-
-    return sessionId;
+    return sessionStorage.getItem(
+      "sessionId"
+    );
 
   };
 
@@ -190,6 +177,25 @@ function App() {
     }
 
 
+    const currentUser =
+  getCurrentUser();
+
+const userId =
+  currentUser?._id ||
+  currentUser?.id;
+
+
+if (!userId) {
+
+  console.error(
+    "❌ User ID missing"
+  );
+
+  return;
+
+}
+
+
     console.log(
       "🔌 Connecting Socket.IO..."
     );
@@ -214,6 +220,8 @@ function App() {
             token,
 
             sessionId,
+
+            userId,
 
           },
 
@@ -1573,58 +1581,42 @@ function App() {
     // SEND MESSAGE THROUGH SOCKET
     // ======================================
 
-    console.log(
-      "📤 Sending message:",
-      {
+      console.log(
+        "📤 Sending message:",
+        {
 
-        roomId,
+          roomId,
 
-        senderId:
-          currentUserId,
+          receiverId:
+            selectedUserId,
 
-        receiverId:
-          selectedUserId,
+          message:
+            text.trim(),
 
-        username:
-          currentUser.username,
+          file:
+            uploadedFile,
 
-        message:
-          text.trim(),
-
-        file:
-          uploadedFile,
-
-        sessionId,
-
-      }
-    );
+        }
+      );
 
 
-    socket.emit(
-      "send_message",
-      {
+      socket.emit(
+        "send_message",
+        {
 
-        roomId,
+          roomId,
 
-        senderId:
-          currentUserId,
+          receiverId:
+            selectedUserId,
 
-        receiverId:
-          selectedUserId,
+          message:
+            text.trim(),
 
-        username:
-          currentUser.username,
+          file:
+            uploadedFile,
 
-        message:
-          text.trim(),
-
-        file:
-          uploadedFile,
-
-        sessionId,
-
-      }
-    );
+        }
+      );
 
 
     // ======================================

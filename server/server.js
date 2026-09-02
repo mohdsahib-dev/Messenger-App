@@ -1,5 +1,8 @@
 require("dotenv").config();
 
+const jwt = require("jsonwebtoken");
+const User = require("./models/User");
+
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
@@ -33,7 +36,6 @@ const server = http.createServer(app);
 
 const uploadsPath = path.join(__dirname, "uploads");
 
-// Create uploads folder if it doesn't exist
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, {
     recursive: true,
@@ -58,11 +60,6 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests without an origin
-      // Example:
-      // Postman
-      // Server-to-server requests
-
       if (!origin) {
         return callback(null, true);
       }
@@ -103,11 +100,6 @@ app.use(express.json());
 // FILE ROUTES
 // ========================================
 
-// Upload API
-//
-// POST
-// /api/files/upload
-
 app.use(
   "/api/files",
   fileRoutes
@@ -116,19 +108,6 @@ app.use(
 // ========================================
 // STATIC UPLOADED FILES
 // ========================================
-//
-// Files stored inside:
-//
-// server/uploads/
-//
-// Can be accessed using:
-//
-// http://localhost:5000/uploads/filename.pdf
-//
-// Production:
-//
-// https://messenger-app-of9j.onrender.com/uploads/filename.pdf
-//
 
 app.use(
   "/uploads",
@@ -175,7 +154,6 @@ app.get("/", (req, res) => {
 const io = new Server(server, {
   cors: {
     origin: function (origin, callback) {
-      // Allow requests without an origin
       if (!origin) {
         return callback(null, true);
       }
@@ -190,7 +168,9 @@ const io = new Server(server, {
       );
 
       return callback(
-        new Error("Not allowed by Socket.IO CORS")
+        new Error(
+          "Not allowed by Socket.IO CORS"
+        )
       );
     },
 
@@ -228,30 +208,215 @@ if (!process.env.MONGO_URI) {
 }
 
 // ========================================
+// SOCKET AUTHENTICATION MIDDLEWARE
+// ========================================
+
+io.use(async (socket, next) => {
+  try {
+    // Get authentication data
+    const {
+      token,
+      sessionId,
+      userId,
+    } = socket.handshake.auth || {};
+
+    // ======================================
+    // CHECK REQUIRED AUTH DATA
+    // ======================================
+
+    if (
+      !token ||
+      !sessionId ||
+      !userId
+    ) {
+      console.error(
+        "❌ Socket authentication data missing"
+      );
+
+      return next(
+        new Error(
+          "Authentication required"
+        )
+      );
+    }
+
+    // ======================================
+    // CHECK JWT SECRET
+    // ======================================
+
+    if (!process.env.JWT_SECRET) {
+      console.error(
+        "❌ JWT_SECRET is not configured"
+      );
+
+      return next(
+        new Error(
+          "JWT_SECRET is not configured"
+        )
+      );
+    }
+
+    // ======================================
+    // VERIFY JWT
+    // ======================================
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
+    // ======================================
+    // VERIFY USER ID
+    // ======================================
+
+    if (
+      String(decoded.userId) !==
+      String(userId)
+    ) {
+      console.error(
+        "❌ Invalid user ID"
+      );
+
+      return next(
+        new Error("Invalid user")
+      );
+    }
+
+    // ======================================
+    // VERIFY SESSION ID
+    // ======================================
+
+    if (
+      String(decoded.sessionId) !==
+      String(sessionId)
+    ) {
+      console.error(
+        "❌ Invalid session ID"
+      );
+
+      return next(
+        new Error("Invalid session")
+      );
+    }
+
+    // ======================================
+    // FIND USER IN DATABASE
+    // ======================================
+
+    const user =
+      await User.findById(userId);
+
+    if (!user) {
+      console.error(
+        "❌ User not found:",
+        userId
+      );
+
+      return next(
+        new Error("User not found")
+      );
+    }
+
+    // ======================================
+    // VERIFY DATABASE SESSION
+    // ======================================
+
+    if (
+      !user.sessionId ||
+      String(user.sessionId) !==
+        String(sessionId)
+    ) {
+      console.error(
+        "❌ Database session mismatch"
+      );
+
+      return next(
+        new Error("Session invalid")
+      );
+    }
+
+    // ======================================
+    // ATTACH TRUSTED USER DATA
+    // ======================================
+
+    socket.userId =
+      user._id.toString();
+
+    socket.sessionId =
+      user.sessionId;
+
+    socket.username =
+      user.username;
+
+    socket.user = user;
+
+    console.log(
+      "✅ Socket authentication successful"
+    );
+
+    console.log(
+      "User ID:",
+      socket.userId
+    );
+
+    console.log(
+      "Username:",
+      socket.username
+    );
+
+    console.log(
+      "Session ID:",
+      socket.sessionId
+    );
+
+    // ======================================
+    // ALLOW CONNECTION
+    // ======================================
+
+    next();
+
+  } catch (error) {
+    console.error(
+      "❌ Socket authentication error:",
+      error.message
+    );
+
+    return next(
+      new Error(
+        "Authentication failed"
+      )
+    );
+  }
+});
+
+// ========================================
 // SOCKET CONNECTION
 // ========================================
 
 io.on("connection", (socket) => {
-  // Get authentication data from frontend
-  const { token, sessionId, userId } =
-    socket.handshake.auth || {};
 
-    socket.userId = userId;
-    socket.sessionId = sessionId;
+  // ======================================
+  // TRUSTED USER INFORMATION
+  // ======================================
 
   console.log(
-    "User connected:",
+    "✅ Authenticated user connected:",
     socket.id
   );
 
   console.log(
     "User ID:",
-    userId
+    socket.userId
+  );
+
+  console.log(
+    "Username:",
+    socket.username
   );
 
   console.log(
     "Session ID:",
-    sessionId
+    socket.sessionId
   );
 
   // ======================================
@@ -262,6 +427,11 @@ io.on("connection", (socket) => {
     "join_room",
     (roomId) => {
       try {
+
+        // ==================================
+        // VALIDATE ROOM ID
+        // ==================================
+
         if (!roomId) {
           console.error(
             "join_room: roomId is missing"
@@ -270,11 +440,47 @@ io.on("connection", (socket) => {
           return;
         }
 
+        // ==================================
+        // CHECK ROOM MEMBERS
+        // ==================================
+
+        const roomParts =
+          String(roomId).split("_");
+
+        // Current authenticated user
+        // must be part of the room
+
+        if (
+          !roomParts.includes(
+            String(socket.userId)
+          )
+        ) {
+          console.error(
+            "❌ Unauthorized room join:",
+            roomId
+          );
+
+          socket.emit(
+            "message_error",
+            {
+              message:
+                "Unauthorized room.",
+            }
+          );
+
+          return;
+        }
+
+        // ==================================
+        // JOIN ROOM
+        // ==================================
+
         socket.join(roomId);
 
         console.log(
-          `${socket.id} joined room: ${roomId}`
+          `✅ ${socket.id} joined room: ${roomId}`
         );
+
       } catch (error) {
         console.error(
           "Join room error:",
@@ -291,17 +497,22 @@ io.on("connection", (socket) => {
   socket.on(
     "send_message",
     async (data) => {
+
       try {
+
         console.log(
-          "Message received:",
+          "📩 Message received:",
           data
         );
 
         // ==================================
-        // VALIDATE ROOM
+        // VALIDATE DATA
         // ==================================
 
-        if (!data || !data.roomId) {
+        if (
+          !data ||
+          !data.roomId
+        ) {
           socket.emit(
             "message_error",
             {
@@ -314,26 +525,118 @@ io.on("connection", (socket) => {
         }
 
         // ==================================
+        // GET ROOM MEMBERS
+        // ==================================
+
+        const roomParts =
+          String(data.roomId).split("_");
+
+        // ==================================
+        // VERIFY SENDER
+        // ==================================
+
+        if (
+          !roomParts.includes(
+            String(socket.userId)
+          )
+        ) {
+          console.error(
+            "❌ Unauthorized message attempt:",
+            data.roomId
+          );
+
+          socket.emit(
+            "message_error",
+            {
+              message:
+                "Unauthorized room.",
+            }
+          );
+
+          return;
+        }
+
+        // ==================================
+        // VALIDATE RECEIVER
+        // ==================================
+
+        if (!data.receiverId) {
+          socket.emit(
+            "message_error",
+            {
+              message:
+                "Receiver ID is required.",
+            }
+          );
+
+          return;
+        }
+
+        const receiverId =
+          String(data.receiverId);
+
+        // ==================================
+        // VERIFY RECEIVER IS IN ROOM
+        // ==================================
+
+        if (
+          !roomParts.includes(
+            receiverId
+          )
+        ) {
+          console.error(
+            "❌ Receiver is not part of room:",
+            receiverId
+          );
+
+          socket.emit(
+            "message_error",
+            {
+              message:
+                "Invalid receiver.",
+            }
+          );
+
+          return;
+        }
+
+        // ==================================
         // CREATE MESSAGE
         // ==================================
 
         const newMessage =
           new Message({
+
+            // Room
             roomId:
               data.roomId,
 
+            // IMPORTANT:
+            // Never trust senderId
+            // from frontend
+
             senderId:
-              data.senderId,
+              socket.userId,
+
+            // IMPORTANT:
+            // Never trust username
+            // from frontend
 
             senderUsername:
-              data.username,
+              socket.username,
+
+            // Receiver can come
+            // from frontend after
+            // room validation
 
             receiverId:
-              data.receiverId,
+              receiverId,
 
+            // Text
             message:
               data.message || "",
 
+            // File
             file:
               data.file || null,
           });
@@ -346,7 +649,7 @@ io.on("connection", (socket) => {
           await newMessage.save();
 
         console.log(
-          "Message saved to MongoDB:",
+          "✅ Message saved to MongoDB:",
           savedMessage._id
         );
 
@@ -355,6 +658,7 @@ io.on("connection", (socket) => {
         // ==================================
 
         const messageData = {
+
           _id:
             savedMessage._id,
 
@@ -374,7 +678,8 @@ io.on("connection", (socket) => {
             savedMessage.message,
 
           file:
-            savedMessage.file || null,
+            savedMessage.file ||
+            null,
 
           timestamp:
             savedMessage.createdAt,
@@ -392,8 +697,9 @@ io.on("connection", (socket) => {
           );
 
       } catch (error) {
+
         console.error(
-          "Message save error:",
+          "❌ Message save error:",
           error
         );
 
@@ -415,6 +721,7 @@ io.on("connection", (socket) => {
   socket.on(
     "disconnect",
     (reason) => {
+
       console.log(
         "User disconnected:",
         socket.id,
@@ -435,6 +742,7 @@ const PORT =
 server.listen(
   PORT,
   () => {
+
     console.log(
       `Server running on port ${PORT}`
     );
