@@ -110,11 +110,18 @@ router.post("/register", async (req, res) => {
       });
 
     // ======================================
-    // CREATE UNIQUE SESSION ID
+    // GET OR CREATE SESSION ID
     // ======================================
 
-    const sessionId =
-      crypto.randomUUID();
+      let sessionId = user.sessionId;
+
+      if (!sessionId) {
+        sessionId = crypto.randomUUID();
+
+        user.sessionId = sessionId;
+
+        await user.save();
+      }
 
     // ======================================
     // JWT
@@ -250,19 +257,20 @@ router.post("/login", async (req, res) => {
     }
 
     // ======================================
-    // ONLINE STATUS
+    // ONLINE STATUS + SESSION ID
     // ======================================
 
     user.status = "online";
 
+    // Existing session ID use karo
+    // Agar nahi hai to new generate karo
+    if (!user.sessionId) {
+      user.sessionId = crypto.randomUUID();
+    }
+
     await user.save();
 
-    // ======================================
-    // CREATE UNIQUE SESSION ID
-    // ======================================
-
-    const sessionId =
-      crypto.randomUUID();
+    const sessionId = user.sessionId;
 
     // ======================================
     // CREATE JWT

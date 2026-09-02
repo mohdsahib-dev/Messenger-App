@@ -22,6 +22,12 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Same user ke multiple tabs ke liye same session ID
+    sessionId: {
+      type: String,
+      default: null,
+    },
+
     status: {
       type: String,
       enum: ["online", "offline"],

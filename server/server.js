@@ -232,9 +232,26 @@ if (!process.env.MONGO_URI) {
 // ========================================
 
 io.on("connection", (socket) => {
+  // Get authentication data from frontend
+  const { token, sessionId, userId } =
+    socket.handshake.auth || {};
+
+    socket.userId = userId;
+    socket.sessionId = sessionId;
+
   console.log(
     "User connected:",
     socket.id
+  );
+
+  console.log(
+    "User ID:",
+    userId
+  );
+
+  console.log(
+    "Session ID:",
+    sessionId
   );
 
   // ======================================
