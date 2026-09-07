@@ -68,6 +68,14 @@ function App() {
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
 
+  // ========================================
+// TYPING INDICATOR
+// ========================================
+const [isTyping, setIsTyping] = useState(false);
+
+const typingTimeoutRef = useRef(null);
+const isTypingRef = useRef(false);
+
 
   // ========================================
   // FILE UPLOAD
@@ -145,6 +153,101 @@ function App() {
 
   };
 
+
+  // ========================================
+  // STOP LOCAL TYPING
+  // ========================================
+
+  const stopTyping = () => {
+    const socket = socketRef.current;
+    const selectedUser = selectedUserRef.current;
+    const currentUser = getCurrentUser();
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+
+    if (socket && socket.connected && selectedUser && currentUser) {
+      const currentUserId = currentUser._id || currentUser.id;
+      const selectedUserId = selectedUser._id || selectedUser.id;
+
+      if (currentUserId && selectedUserId) {
+        const roomId = createRoomId(currentUserId, selectedUserId);
+
+        if (isTypingRef.current) {
+          socket.emit("stop_typing", {
+            roomId,
+            userId: currentUserId,
+            receiverId: selectedUserId,
+          });
+        }
+      }
+    }
+
+    isTypingRef.current = false;
+    setIsTyping(false);
+  };
+
+  // ========================================
+  // HANDLE LOCAL TYPING
+  // ========================================
+
+  const handleTyping = (value) => {
+    setText(value);
+
+    const socket = socketRef.current;
+    const currentUser = getCurrentUser();
+    const selectedUser = selectedUserRef.current;
+
+    if (!socket || !socket.connected || !currentUser || !selectedUser) {
+      return;
+    }
+
+    const currentUserId = currentUser._id || currentUser.id;
+    const selectedUserId = selectedUser._id || selectedUser.id;
+
+    if (!currentUserId || !selectedUserId) {
+      return;
+    }
+
+    const roomId = createRoomId(currentUserId, selectedUserId);
+
+    // Empty input means typing has stopped.
+    if (!value.trim()) {
+      stopTyping();
+      return;
+    }
+
+    // Send "typing" only once until the timeout fires.
+    if (!isTypingRef.current) {
+      socket.emit("typing", {
+        roomId,
+        userId: currentUserId,
+        receiverId: selectedUserId,
+      });
+
+      isTypingRef.current = true;
+    }
+
+    // Reset the timer every time the user presses a key.
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      if (socket.connected) {
+        socket.emit("stop_typing", {
+          roomId,
+          userId: currentUserId,
+          receiverId: selectedUserId,
+        });
+      }
+
+      isTypingRef.current = false;
+      typingTimeoutRef.current = null;
+    }, 1500);
+  };
 
   // ========================================
   // SOCKET CONNECTION
@@ -321,6 +424,64 @@ function App() {
       }
     );
 
+
+    // ======================================
+// USER TYPING
+// ======================================
+newSocket.on("user_typing", ({ userId, roomId }) => {
+  const currentUser = getCurrentUser();
+  const selectedUser = selectedUserRef.current;
+
+  if (!currentUser || !selectedUser) return;
+
+  const currentUserId =
+    currentUser._id || currentUser.id;
+
+  const selectedUserId =
+    selectedUser._id || selectedUser.id;
+
+  const currentRoomId =
+    createRoomId(
+      currentUserId,
+      selectedUserId
+    );
+
+  if (
+    String(roomId) === String(currentRoomId) &&
+    String(userId) === String(selectedUserId)
+  ) {
+    setIsTyping(true);
+  }
+});
+
+// ======================================
+// USER STOPPED TYPING
+// ======================================
+newSocket.on("user_stop_typing", ({ userId, roomId }) => {
+  const currentUser = getCurrentUser();
+  const selectedUser = selectedUserRef.current;
+
+  if (!currentUser || !selectedUser) return;
+
+  const currentUserId =
+    currentUser._id || currentUser.id;
+
+  const selectedUserId =
+    selectedUser._id || selectedUser.id;
+
+  const currentRoomId =
+    createRoomId(
+      currentUserId,
+      selectedUserId
+    );
+
+  if (
+    String(roomId) === String(currentRoomId) &&
+    String(userId) === String(selectedUserId)
+  ) {
+    setIsTyping(false);
+  }
+});
 
     // ======================================
     // RECEIVE MESSAGE
@@ -519,6 +680,13 @@ function App() {
         "🔌 Cleaning Socket.IO connection..."
       );
 
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+
+      isTypingRef.current = false;
+      setIsTyping(false);
 
       newSocket.disconnect();
 
@@ -826,6 +994,9 @@ function App() {
 
   const logout = () => {
 
+    // Stop any active typing indicator before logging out.
+    stopTyping();
+
     // ======================================
     // REMOVE SESSION
     // ======================================
@@ -887,10 +1058,15 @@ function App() {
 
   const selectUser = async (user) => {
 
+    // Stop typing in the previous chat before switching rooms.
+    stopTyping();
+
     setSelectedUser(user);
 
     selectedUserRef.current =
       user;
+
+    setIsTyping(false);
 
     setMessages([]);
 
@@ -1431,6 +1607,9 @@ function App() {
 
   const sendMessage = async () => {
 
+    // Sending a message always ends the typing state.
+    stopTyping();
+
     // ======================================
     // SELECTED USER CHECK
     // ======================================
@@ -1621,6 +1800,9 @@ function App() {
 
         roomId,
 
+        senderId:
+          currentUserId,
+
         receiverId:
           selectedUserId,
 
@@ -1629,6 +1811,8 @@ function App() {
 
         file:
           uploadedFile,
+
+        sessionId,
 
       }
     );
@@ -2192,8 +2376,16 @@ function App() {
                   }
                 </h3>
 
-                <span>
-                  Online
+                <span
+                  className={
+                    isTyping
+                      ? "typing-status"
+                      : ""
+                  }
+                >
+                  {isTyping
+                    ? "typing..."
+                    : "Online"}
                 </span>
 
               </div>
@@ -2544,7 +2736,7 @@ function App() {
                   text
                 }
                 onChange={(e) =>
-                  setText(
+                  handleTyping(
                     e.target.value
                   )
                 }

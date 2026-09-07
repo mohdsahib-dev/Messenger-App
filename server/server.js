@@ -491,6 +491,209 @@ io.on("connection", (socket) => {
   );
 
   // ======================================
+  // TYPING INDICATOR
+  // ======================================
+
+  socket.on(
+    "typing",
+    ({ roomId, userId, receiverId }) => {
+      try {
+
+        // ==================================
+        // VALIDATE DATA
+        // ==================================
+
+        if (
+          !roomId ||
+          !userId ||
+          !receiverId
+        ) {
+          return;
+        }
+
+        // ==================================
+        // GET ROOM MEMBERS
+        // ==================================
+
+        const roomParts =
+          String(roomId).split("_");
+
+        // ==================================
+        // VERIFY SENDER
+        // ==================================
+
+        // Sender must be the authenticated
+        // socket user.
+
+        if (
+          !roomParts.includes(
+            String(socket.userId)
+          )
+        ) {
+          console.error(
+            "❌ Unauthorized typing attempt:",
+            roomId
+          );
+
+          return;
+        }
+
+        // ==================================
+        // VERIFY RECEIVER
+        // ==================================
+
+        // Receiver must also belong
+        // to this private room.
+
+        if (
+          !roomParts.includes(
+            String(receiverId)
+          )
+        ) {
+          console.error(
+            "❌ Invalid typing receiver:",
+            receiverId
+          );
+
+          return;
+        }
+
+        // ==================================
+        // TRUSTED USER ID
+        // ==================================
+
+        // Never trust userId coming
+        // from the frontend.
+
+        const trustedUserId =
+          String(socket.userId);
+
+        // ==================================
+        // FORWARD TYPING EVENT
+        // ==================================
+
+        socket
+          .to(roomId)
+          .emit(
+            "user_typing",
+            {
+              roomId,
+
+              userId:
+                trustedUserId,
+
+              receiverId:
+                String(receiverId),
+            }
+          );
+
+      } catch (error) {
+        console.error(
+          "Typing event error:",
+          error
+        );
+      }
+    }
+  );
+
+  // ======================================
+  // STOP TYPING
+  // ======================================
+
+  socket.on(
+    "stop_typing",
+    ({ roomId, userId, receiverId }) => {
+      try {
+
+        // ==================================
+        // VALIDATE DATA
+        // ==================================
+
+        if (
+          !roomId ||
+          !userId ||
+          !receiverId
+        ) {
+          return;
+        }
+
+        // ==================================
+        // GET ROOM MEMBERS
+        // ==================================
+
+        const roomParts =
+          String(roomId).split("_");
+
+        // ==================================
+        // VERIFY SENDER
+        // ==================================
+
+        if (
+          !roomParts.includes(
+            String(socket.userId)
+          )
+        ) {
+          console.error(
+            "❌ Unauthorized stop typing attempt:",
+            roomId
+          );
+
+          return;
+        }
+
+        // ==================================
+        // VERIFY RECEIVER
+        // ==================================
+
+        if (
+          !roomParts.includes(
+            String(receiverId)
+          )
+        ) {
+          console.error(
+            "❌ Invalid stop typing receiver:",
+            receiverId
+          );
+
+          return;
+        }
+
+        // ==================================
+        // TRUSTED USER ID
+        // ==================================
+
+        const trustedUserId =
+          String(socket.userId);
+
+        // ==================================
+        // FORWARD STOP TYPING EVENT
+        // ==================================
+
+        socket
+          .to(roomId)
+          .emit(
+            "user_stop_typing",
+            {
+              roomId,
+
+              userId:
+                trustedUserId,
+
+              receiverId:
+                String(receiverId),
+            }
+          );
+
+      } catch (error) {
+        console.error(
+          "Stop typing event error:",
+          error
+        );
+      }
+    }
+  );
+
+  // ======================================
   // SEND MESSAGE
   // ======================================
 
