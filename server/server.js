@@ -27,7 +27,6 @@ const Message = require("./models/Message");
 // ========================================
 
 const app = express();
-
 const server = http.createServer(app);
 
 // ========================================
@@ -41,7 +40,7 @@ if (!fs.existsSync(uploadsPath)) {
     recursive: true,
   });
 
-  console.log("Uploads folder created.");
+  console.log("📁 Uploads folder created.");
 }
 
 // ========================================
@@ -50,6 +49,7 @@ if (!fs.existsSync(uploadsPath)) {
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:5174",
   "https://messenger-app-cyan-two.vercel.app",
 ];
 
@@ -60,6 +60,8 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
+      // Allow requests without Origin
+      // Example: Postman / server-to-server
       if (!origin) {
         return callback(null, true);
       }
@@ -69,7 +71,7 @@ app.use(
       }
 
       console.error(
-        "CORS blocked origin:",
+        "❌ CORS blocked origin:",
         origin
       );
 
@@ -86,6 +88,12 @@ app.use(
       "OPTIONS",
     ],
 
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Session-ID",
+    ],
+
     credentials: true,
   })
 );
@@ -95,6 +103,11 @@ app.use(
 // ========================================
 
 app.use(express.json());
+app.use(
+  express.urlencoded({
+    extended: true,
+  })
+);
 
 // ========================================
 // FILE ROUTES
@@ -144,6 +157,7 @@ app.get("/", (req, res) => {
   res.json({
     success: true,
     message: "Messenger Backend is Running!",
+    socket: "Socket.IO enabled",
   });
 });
 
@@ -153,35 +167,124 @@ app.get("/", (req, res) => {
 
 const io = new Server(server, {
   cors: {
-    origin: function (origin, callback) {
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      console.error(
-        "Socket.IO CORS blocked origin:",
-        origin
-      );
-
-      return callback(
-        new Error(
-          "Not allowed by Socket.IO CORS"
-        )
-      );
-    },
-
-    methods: [
-      "GET",
-      "POST",
-    ],
-
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
     credentials: true,
   },
+
+  transports: [
+    "polling",
+    "websocket",
+  ],
+
+  // Ping configuration
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
+
+// ========================================
+// ONLINE USERS
+// ========================================
+//
+// Structure:
+//
+// Map {
+//   userId => Set(socketId)
+// }
+//
+// Set is used because the same user can have
+// multiple tabs/devices connected.
+//
+// ========================================
+
+const onlineUsers = new Map();
+
+// ========================================
+// SOCKET -> USER MAP
+// ========================================
+
+const socketUsers = new Map();
+
+// ========================================
+// HELPER: ADD ONLINE USER
+// ========================================
+
+function addOnlineUser(userId, socketId) {
+  const id = String(userId);
+
+  if (!onlineUsers.has(id)) {
+    onlineUsers.set(id, new Set());
+  }
+
+  onlineUsers
+    .get(id)
+    .add(socketId);
+
+  socketUsers.set(
+    socketId,
+    id
+  );
+}
+
+// ========================================
+// HELPER: REMOVE ONLINE USER
+// ========================================
+
+function removeOnlineUser(socketId) {
+  const userId =
+    socketUsers.get(socketId);
+
+  if (!userId) {
+    return null;
+  }
+
+  // Remove socket mapping
+  socketUsers.delete(socketId);
+
+  const userSockets =
+    onlineUsers.get(userId);
+
+  if (userSockets) {
+    userSockets.delete(socketId);
+
+    // If user has no more active sockets,
+    // user is actually offline.
+    if (userSockets.size === 0) {
+      onlineUsers.delete(userId);
+
+      return {
+        userId,
+        becameOffline: true,
+      };
+    }
+  }
+
+  // User still has another tab/device open.
+  return {
+    userId,
+    becameOffline: false,
+  };
+}
+
+// ========================================
+// HELPER: CHECK ONLINE STATUS
+// ========================================
+
+function isUserOnline(userId) {
+  return onlineUsers.has(
+    String(userId)
+  );
+}
+
+// ========================================
+// HELPER: GET ONLINE USERS
+// ========================================
+
+function getOnlineUsers() {
+  return Array.from(
+    onlineUsers.keys()
+  );
+}
 
 // ========================================
 // MONGODB CONNECTION
@@ -189,19 +292,19 @@ const io = new Server(server, {
 
 if (!process.env.MONGO_URI) {
   console.error(
-    "ERROR: MONGO_URI is not defined in .env"
+    "❌ ERROR: MONGO_URI is not defined in .env"
   );
 } else {
   mongoose
     .connect(process.env.MONGO_URI)
     .then(() => {
       console.log(
-        "MongoDB Connected Successfully"
+        "✅ MongoDB Connected Successfully"
       );
     })
     .catch((error) => {
       console.error(
-        "MongoDB Connection Error:",
+        "❌ MongoDB Connection Error:",
         error.message
       );
     });
@@ -213,12 +316,12 @@ if (!process.env.MONGO_URI) {
 
 io.use(async (socket, next) => {
   try {
-    // Get authentication data
     const {
       token,
       sessionId,
       userId,
-    } = socket.handshake.auth || {};
+    } =
+      socket.handshake.auth || {};
 
     // ======================================
     // CHECK REQUIRED AUTH DATA
@@ -260,9 +363,14 @@ io.use(async (socket, next) => {
     // VERIFY JWT
     // ======================================
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
+    const decoded =
+      jwt.verify(
+        token,
+        process.env.JWT_SECRET
+      );
+
+    console.log(
+      "🔐 Socket JWT verified"
     );
 
     // ======================================
@@ -278,7 +386,9 @@ io.use(async (socket, next) => {
       );
 
       return next(
-        new Error("Invalid user")
+        new Error(
+          "Invalid user"
+        )
       );
     }
 
@@ -294,13 +404,25 @@ io.use(async (socket, next) => {
         "❌ Invalid session ID"
       );
 
+      console.error(
+        "JWT session:",
+        decoded.sessionId
+      );
+
+      console.error(
+        "Client session:",
+        sessionId
+      );
+
       return next(
-        new Error("Invalid session")
+        new Error(
+          "Invalid session"
+        )
       );
     }
 
     // ======================================
-    // FIND USER IN DATABASE
+    // FIND USER
     // ======================================
 
     const user =
@@ -313,7 +435,9 @@ io.use(async (socket, next) => {
       );
 
       return next(
-        new Error("User not found")
+        new Error(
+          "User not found"
+        )
       );
     }
 
@@ -330,8 +454,20 @@ io.use(async (socket, next) => {
         "❌ Database session mismatch"
       );
 
+      console.error(
+        "Database session:",
+        user.sessionId
+      );
+
+      console.error(
+        "Client session:",
+        sessionId
+      );
+
       return next(
-        new Error("Session invalid")
+        new Error(
+          "Session invalid"
+        )
       );
     }
 
@@ -343,15 +479,20 @@ io.use(async (socket, next) => {
       user._id.toString();
 
     socket.sessionId =
-      user.sessionId;
+      String(user.sessionId);
 
     socket.username =
       user.username;
 
-    socket.user = user;
+    socket.user =
+      user;
 
     console.log(
-      "✅ Socket authentication successful"
+      "========================================"
+    );
+
+    console.log(
+      "✅ SOCKET AUTHENTICATION SUCCESSFUL"
     );
 
     console.log(
@@ -369,13 +510,14 @@ io.use(async (socket, next) => {
       socket.sessionId
     );
 
-    // ======================================
-    // ALLOW CONNECTION
-    // ======================================
+    console.log(
+      "========================================"
+    );
 
     next();
 
   } catch (error) {
+
     console.error(
       "❌ Socket authentication error:",
       error.message
@@ -393,550 +535,834 @@ io.use(async (socket, next) => {
 // SOCKET CONNECTION
 // ========================================
 
-io.on("connection", (socket) => {
-
-  // ======================================
-  // TRUSTED USER INFORMATION
-  // ======================================
-
-  console.log(
-    "✅ Authenticated user connected:",
-    socket.id
-  );
-
-  console.log(
-    "User ID:",
-    socket.userId
-  );
-
-  console.log(
-    "Username:",
-    socket.username
-  );
-
-  console.log(
-    "Session ID:",
-    socket.sessionId
-  );
-
-  // ======================================
-  // JOIN CHAT ROOM
-  // ======================================
-
-  socket.on(
-    "join_room",
-    (roomId) => {
-      try {
-
-        // ==================================
-        // VALIDATE ROOM ID
-        // ==================================
-
-        if (!roomId) {
-          console.error(
-            "join_room: roomId is missing"
-          );
-
-          return;
-        }
-
-        // ==================================
-        // CHECK ROOM MEMBERS
-        // ==================================
-
-        const roomParts =
-          String(roomId).split("_");
-
-        // Current authenticated user
-        // must be part of the room
-
-        if (
-          !roomParts.includes(
-            String(socket.userId)
-          )
-        ) {
-          console.error(
-            "❌ Unauthorized room join:",
-            roomId
-          );
-
-          socket.emit(
-            "message_error",
-            {
-              message:
-                "Unauthorized room.",
-            }
-          );
-
-          return;
-        }
-
-        // ==================================
-        // JOIN ROOM
-        // ==================================
-
-        socket.join(roomId);
-
-        console.log(
-          `✅ ${socket.id} joined room: ${roomId}`
-        );
-
-      } catch (error) {
-        console.error(
-          "Join room error:",
-          error
-        );
-      }
-    }
-  );
-
-  // ======================================
-  // TYPING INDICATOR
-  // ======================================
-
-  socket.on(
-    "typing",
-    ({ roomId, userId, receiverId }) => {
-      try {
-
-        // ==================================
-        // VALIDATE DATA
-        // ==================================
-
-        if (
-          !roomId ||
-          !userId ||
-          !receiverId
-        ) {
-          return;
-        }
-
-        // ==================================
-        // GET ROOM MEMBERS
-        // ==================================
-
-        const roomParts =
-          String(roomId).split("_");
-
-        // ==================================
-        // VERIFY SENDER
-        // ==================================
-
-        // Sender must be the authenticated
-        // socket user.
-
-        if (
-          !roomParts.includes(
-            String(socket.userId)
-          )
-        ) {
-          console.error(
-            "❌ Unauthorized typing attempt:",
-            roomId
-          );
-
-          return;
-        }
-
-        // ==================================
-        // VERIFY RECEIVER
-        // ==================================
-
-        // Receiver must also belong
-        // to this private room.
-
-        if (
-          !roomParts.includes(
-            String(receiverId)
-          )
-        ) {
-          console.error(
-            "❌ Invalid typing receiver:",
-            receiverId
-          );
-
-          return;
-        }
-
-        // ==================================
-        // TRUSTED USER ID
-        // ==================================
-
-        // Never trust userId coming
-        // from the frontend.
-
-        const trustedUserId =
-          String(socket.userId);
-
-        // ==================================
-        // FORWARD TYPING EVENT
-        // ==================================
-
-        socket
-          .to(roomId)
-          .emit(
-            "user_typing",
-            {
-              roomId,
-
-              userId:
-                trustedUserId,
-
-              receiverId:
-                String(receiverId),
-            }
-          );
-
-      } catch (error) {
-        console.error(
-          "Typing event error:",
-          error
-        );
-      }
-    }
-  );
-
-  // ======================================
-  // STOP TYPING
-  // ======================================
-
-  socket.on(
-    "stop_typing",
-    ({ roomId, userId, receiverId }) => {
-      try {
-
-        // ==================================
-        // VALIDATE DATA
-        // ==================================
-
-        if (
-          !roomId ||
-          !userId ||
-          !receiverId
-        ) {
-          return;
-        }
-
-        // ==================================
-        // GET ROOM MEMBERS
-        // ==================================
-
-        const roomParts =
-          String(roomId).split("_");
-
-        // ==================================
-        // VERIFY SENDER
-        // ==================================
-
-        if (
-          !roomParts.includes(
-            String(socket.userId)
-          )
-        ) {
-          console.error(
-            "❌ Unauthorized stop typing attempt:",
-            roomId
-          );
-
-          return;
-        }
-
-        // ==================================
-        // VERIFY RECEIVER
-        // ==================================
-
-        if (
-          !roomParts.includes(
-            String(receiverId)
-          )
-        ) {
-          console.error(
-            "❌ Invalid stop typing receiver:",
-            receiverId
-          );
-
-          return;
-        }
-
-        // ==================================
-        // TRUSTED USER ID
-        // ==================================
-
-        const trustedUserId =
-          String(socket.userId);
-
-        // ==================================
-        // FORWARD STOP TYPING EVENT
-        // ==================================
-
-        socket
-          .to(roomId)
-          .emit(
-            "user_stop_typing",
-            {
-              roomId,
-
-              userId:
-                trustedUserId,
-
-              receiverId:
-                String(receiverId),
-            }
-          );
-
-      } catch (error) {
-        console.error(
-          "Stop typing event error:",
-          error
-        );
-      }
-    }
-  );
-
-  // ======================================
-  // SEND MESSAGE
-  // ======================================
-
-  socket.on(
-    "send_message",
-    async (data) => {
-
-      try {
-
-        console.log(
-          "📩 Message received:",
-          data
-        );
-
-        // ==================================
-        // VALIDATE DATA
-        // ==================================
-
-        if (
-          !data ||
-          !data.roomId
-        ) {
-          socket.emit(
-            "message_error",
-            {
-              message:
-                "Room ID is required.",
-            }
-          );
-
-          return;
-        }
-
-        // ==================================
-        // GET ROOM MEMBERS
-        // ==================================
-
-        const roomParts =
-          String(data.roomId).split("_");
-
-        // ==================================
-        // VERIFY SENDER
-        // ==================================
-
-        if (
-          !roomParts.includes(
-            String(socket.userId)
-          )
-        ) {
-          console.error(
-            "❌ Unauthorized message attempt:",
-            data.roomId
-          );
-
-          socket.emit(
-            "message_error",
-            {
-              message:
-                "Unauthorized room.",
-            }
-          );
-
-          return;
-        }
-
-        // ==================================
-        // VALIDATE RECEIVER
-        // ==================================
-
-        if (!data.receiverId) {
-          socket.emit(
-            "message_error",
-            {
-              message:
-                "Receiver ID is required.",
-            }
-          );
-
-          return;
-        }
-
-        const receiverId =
-          String(data.receiverId);
-
-        // ==================================
-        // VERIFY RECEIVER IS IN ROOM
-        // ==================================
-
-        if (
-          !roomParts.includes(
-            receiverId
-          )
-        ) {
-          console.error(
-            "❌ Receiver is not part of room:",
-            receiverId
-          );
-
-          socket.emit(
-            "message_error",
-            {
-              message:
-                "Invalid receiver.",
-            }
-          );
-
-          return;
-        }
-
-        // ==================================
-        // CREATE MESSAGE
-        // ==================================
-
-        const newMessage =
-          new Message({
-
-            // Room
-            roomId:
-              data.roomId,
-
-            // IMPORTANT:
-            // Never trust senderId
-            // from frontend
-
-            senderId:
-              socket.userId,
-
-            // IMPORTANT:
-            // Never trust username
-            // from frontend
-
-            senderUsername:
-              socket.username,
-
-            // Receiver can come
-            // from frontend after
-            // room validation
-
-            receiverId:
-              receiverId,
-
-            // Text
-            message:
-              data.message || "",
-
-            // File
-            file:
-              data.file || null,
-          });
-
-        // ==================================
-        // SAVE MESSAGE TO MONGODB
-        // ==================================
-
-        const savedMessage =
-          await newMessage.save();
-
-        console.log(
-          "✅ Message saved to MongoDB:",
-          savedMessage._id
-        );
-
-        // ==================================
-        // PREPARE MESSAGE RESPONSE
-        // ==================================
-
-        const messageData = {
-
-          _id:
-            savedMessage._id,
-
-          roomId:
-            savedMessage.roomId,
-
-          senderId:
-            savedMessage.senderId,
-
-          receiverId:
-            savedMessage.receiverId,
+io.on(
+  "connection",
+  (socket) => {
+
+    console.log(
+      "========================================"
+    );
+
+    console.log(
+      "🟢 AUTHENTICATED USER CONNECTED"
+    );
+
+    console.log(
+      "Socket ID:",
+      socket.id
+    );
+
+    console.log(
+      "User ID:",
+      socket.userId
+    );
+
+    console.log(
+      "Username:",
+      socket.username
+    );
+
+    console.log(
+      "Session ID:",
+      socket.sessionId
+    );
+
+    console.log(
+      "========================================"
+    );
+
+    // ======================================
+    // ADD USER TO ONLINE USERS
+    // ======================================
+
+    const wasAlreadyOnline =
+      isUserOnline(
+        socket.userId
+      );
+
+    addOnlineUser(
+      socket.userId,
+      socket.id
+    );
+
+    // ======================================
+    // SEND CURRENT ONLINE USERS
+    // ======================================
+
+    socket.emit(
+      "online_users",
+      getOnlineUsers()
+    );
+
+    // ======================================
+    // NOTIFY OTHER USERS
+    // ======================================
+
+    if (!wasAlreadyOnline) {
+      socket.broadcast.emit(
+        "user_online",
+        {
+          userId:
+            socket.userId,
 
           username:
-            savedMessage.senderUsername,
-
-          message:
-            savedMessage.message,
-
-          file:
-            savedMessage.file ||
-            null,
-
-          timestamp:
-            savedMessage.createdAt,
-        };
-
-        // ==================================
-        // SEND MESSAGE TO ROOM
-        // ==================================
-
-        io
-          .to(data.roomId)
-          .emit(
-            "receive_message",
-            messageData
-          );
-
-      } catch (error) {
-
-        console.error(
-          "❌ Message save error:",
-          error
-        );
-
-        socket.emit(
-          "message_error",
-          {
-            message:
-              "Message could not be saved.",
-          }
-        );
-      }
-    }
-  );
-
-  // ======================================
-  // DISCONNECT
-  // ======================================
-
-  socket.on(
-    "disconnect",
-    (reason) => {
+            socket.username,
+        }
+      );
 
       console.log(
-        "User disconnected:",
-        socket.id,
-        "Reason:",
-        reason
+        `🟢 ${socket.username} is ONLINE`
       );
     }
-  );
-});
+
+    // ======================================
+    // JOIN CHAT ROOM
+    // ======================================
+
+    socket.on(
+      "join_room",
+      (roomId) => {
+
+        try {
+
+          // ==================================
+          // VALIDATE ROOM ID
+          // ==================================
+
+          if (!roomId) {
+
+            console.error(
+              "❌ join_room: roomId is missing"
+            );
+
+            return;
+          }
+
+          // ==================================
+          // GET ROOM MEMBERS
+          // ==================================
+
+          const roomParts =
+            String(roomId).split("_");
+
+          // ==================================
+          // VERIFY USER BELONGS TO ROOM
+          // ==================================
+
+          if (
+            !roomParts.includes(
+              String(
+                socket.userId
+              )
+            )
+          ) {
+
+            console.error(
+              "❌ Unauthorized room join:",
+              roomId
+            );
+
+            socket.emit(
+              "message_error",
+              {
+                message:
+                  "Unauthorized room.",
+              }
+            );
+
+            return;
+          }
+
+          // ==================================
+          // JOIN ROOM
+          // ==================================
+
+          socket.join(
+            String(roomId)
+          );
+
+          console.log(
+            `✅ ${socket.username} joined room: ${roomId}`
+          );
+
+        } catch (error) {
+
+          console.error(
+            "❌ Join room error:",
+            error
+          );
+        }
+      }
+    );
+
+    // ======================================
+    // TYPING START
+    // ======================================
+
+    socket.on(
+      "typing",
+      ({
+        roomId,
+        userId,
+        receiverId,
+      }) => {
+
+        try {
+
+          if (
+            !roomId ||
+            !receiverId
+          ) {
+            return;
+          }
+
+          // ==================================
+          // GET ROOM MEMBERS
+          // ==================================
+
+          const roomParts =
+            String(roomId).split("_");
+
+          // ==================================
+          // VERIFY SENDER
+          // ==================================
+
+          if (
+            !roomParts.includes(
+              String(
+                socket.userId
+              )
+            )
+          ) {
+
+            console.error(
+              "❌ Unauthorized typing attempt:",
+              roomId
+            );
+
+            return;
+          }
+
+          // ==================================
+          // VERIFY SOCKET IS IN ROOM
+          // ==================================
+
+          if (
+            !socket.rooms.has(
+              String(roomId)
+            )
+          ) {
+
+            console.error(
+              "❌ Socket is not inside room:",
+              roomId
+            );
+
+            return;
+          }
+
+          // ==================================
+          // VERIFY RECEIVER
+          // ==================================
+
+          if (
+            !roomParts.includes(
+              String(receiverId)
+            )
+          ) {
+
+            console.error(
+              "❌ Invalid typing receiver:",
+              receiverId
+            );
+
+            return;
+          }
+
+          // ==================================
+          // PREVENT SELF TYPING
+          // ==================================
+
+          if (
+            String(receiverId) ===
+            String(socket.userId)
+          ) {
+            return;
+          }
+
+          // ==================================
+          // SEND TYPING EVENT
+          // ==================================
+
+          socket
+            .to(roomId)
+            .emit(
+              "user_typing",
+              {
+                roomId:
+
+                  String(
+                    roomId
+                  ),
+
+                userId:
+                  String(
+                    socket.userId
+                  ),
+
+                receiverId:
+                  String(
+                    receiverId
+                  ),
+
+                username:
+                  socket.username,
+              }
+            );
+
+          console.log(
+            `⌨️ ${socket.username} is typing in ${roomId}`
+          );
+
+        } catch (error) {
+
+          console.error(
+            "❌ Typing event error:",
+            error
+          );
+        }
+      }
+    );
+
+    // ======================================
+    // TYPING STOP
+    // ======================================
+
+    socket.on(
+      "stop_typing",
+      ({
+        roomId,
+        userId,
+        receiverId,
+      }) => {
+
+        try {
+
+          if (
+            !roomId ||
+            !receiverId
+          ) {
+            return;
+          }
+
+          // ==================================
+          // GET ROOM MEMBERS
+          // ==================================
+
+          const roomParts =
+            String(roomId).split("_");
+
+          // ==================================
+          // VERIFY SENDER
+          // ==================================
+
+          if (
+            !roomParts.includes(
+              String(
+                socket.userId
+              )
+            )
+          ) {
+
+            console.error(
+              "❌ Unauthorized stop typing attempt:",
+              roomId
+            );
+
+            return;
+          }
+
+          // ==================================
+          // VERIFY SOCKET IS IN ROOM
+          // ==================================
+
+          if (
+            !socket.rooms.has(
+              String(roomId)
+            )
+          ) {
+
+            console.error(
+              "❌ Socket is not inside room:",
+              roomId
+            );
+
+            return;
+          }
+
+          // ==================================
+          // VERIFY RECEIVER
+          // ==================================
+
+          if (
+            !roomParts.includes(
+              String(receiverId)
+            )
+          ) {
+
+            console.error(
+              "❌ Invalid stop typing receiver:",
+              receiverId
+            );
+
+            return;
+          }
+
+          // ==================================
+          // PREVENT SELF TYPING
+          // ==================================
+
+          if (
+            String(receiverId) ===
+            String(socket.userId)
+          ) {
+            return;
+          }
+
+          // ==================================
+          // SEND STOP TYPING EVENT
+          // ==================================
+
+          socket
+            .to(roomId)
+            .emit(
+              "user_stop_typing",
+              {
+                roomId:
+                  String(
+                    roomId
+                  ),
+
+                userId:
+                  String(
+                    socket.userId
+                  ),
+
+                receiverId:
+                  String(
+                    receiverId
+                  ),
+              }
+            );
+
+          console.log(
+            `⌨️ ${socket.username} stopped typing`
+          );
+
+        } catch (error) {
+
+          console.error(
+            "❌ Stop typing event error:",
+            error
+          );
+        }
+      }
+    );
+
+    // ======================================
+    // CHECK USER ONLINE STATUS
+    // ======================================
+
+    socket.on(
+      "check_user_online",
+      ({
+        userId,
+      }) => {
+
+        try {
+
+          if (!userId) {
+            return;
+          }
+
+          socket.emit(
+            "user_online_status",
+            {
+              userId:
+                String(userId),
+
+              online:
+                isUserOnline(
+                  userId
+                ),
+            }
+          );
+
+        } catch (error) {
+
+          console.error(
+            "❌ Online status check error:",
+            error
+          );
+        }
+      }
+    );
+
+    // ======================================
+    // GET ALL ONLINE USERS
+    // ======================================
+
+    socket.on(
+      "get_online_users",
+      () => {
+
+        socket.emit(
+          "online_users",
+          getOnlineUsers()
+        );
+      }
+    );
+
+    // ======================================
+    // SEND MESSAGE
+    // ======================================
+
+    socket.on(
+      "send_message",
+      async (data) => {
+
+        try {
+
+          console.log(
+            "📩 Message received:",
+            data
+          );
+
+          // ==================================
+          // VALIDATE DATA
+          // ==================================
+
+          if (
+            !data ||
+            !data.roomId
+          ) {
+
+            socket.emit(
+              "message_error",
+              {
+                message:
+                  "Room ID is required.",
+              }
+            );
+
+            return;
+          }
+
+          // ==================================
+          // GET ROOM MEMBERS
+          // ==================================
+
+          const roomParts =
+            String(
+              data.roomId
+            ).split("_");
+
+          // ==================================
+          // VERIFY SENDER
+          // ==================================
+
+          if (
+            !roomParts.includes(
+              String(
+                socket.userId
+              )
+            )
+          ) {
+
+            console.error(
+              "❌ Unauthorized message attempt:",
+              data.roomId
+            );
+
+            socket.emit(
+              "message_error",
+              {
+                message:
+                  "Unauthorized room.",
+              }
+            );
+
+            return;
+          }
+
+          // ==================================
+          // VERIFY SOCKET IS IN ROOM
+          // ==================================
+
+          if (
+            !socket.rooms.has(
+              String(
+                data.roomId
+              )
+            )
+          ) {
+
+            console.error(
+              "❌ Sender has not joined room:",
+              data.roomId
+            );
+
+            socket.emit(
+              "message_error",
+              {
+                message:
+                  "You are not connected to this chat room.",
+              }
+            );
+
+            return;
+          }
+
+          // ==================================
+          // VALIDATE RECEIVER
+          // ==================================
+
+          if (
+            !data.receiverId
+          ) {
+
+            socket.emit(
+              "message_error",
+              {
+                message:
+                  "Receiver ID is required.",
+              }
+            );
+
+            return;
+          }
+
+          const receiverId =
+            String(
+              data.receiverId
+            );
+
+          // ==================================
+          // VERIFY RECEIVER IS IN ROOM
+          // ==================================
+
+          if (
+            !roomParts.includes(
+              receiverId
+            )
+          ) {
+
+            console.error(
+              "❌ Receiver is not part of room:",
+              receiverId
+            );
+
+            socket.emit(
+              "message_error",
+              {
+                message:
+                  "Invalid receiver.",
+              }
+            );
+
+            return;
+          }
+
+          // ==================================
+          // CREATE MESSAGE
+          // ==================================
+
+          const newMessage =
+            new Message({
+
+              roomId:
+                data.roomId,
+
+              // IMPORTANT:
+              // Always trust server user ID.
+
+              senderId:
+                socket.userId,
+
+              senderUsername:
+                socket.username,
+
+              receiverId:
+                receiverId,
+
+              message:
+                data.message || "",
+
+              file:
+                data.file || null,
+            });
+
+          // ==================================
+          // SAVE MESSAGE
+          // ==================================
+
+          const savedMessage =
+            await newMessage.save();
+
+          console.log(
+            "✅ Message saved to MongoDB:",
+            savedMessage._id
+          );
+
+          // ==================================
+          // PREPARE MESSAGE DATA
+          // ==================================
+
+          const messageData = {
+
+            _id:
+              savedMessage._id,
+
+            roomId:
+              savedMessage.roomId,
+
+            senderId:
+              savedMessage.senderId,
+
+            receiverId:
+              savedMessage.receiverId,
+
+            username:
+              savedMessage.senderUsername,
+
+            message:
+              savedMessage.message,
+
+            file:
+              savedMessage.file ||
+              null,
+
+            timestamp:
+              savedMessage.createdAt,
+          };
+
+          // ==================================
+          // SEND MESSAGE TO ROOM
+          // ==================================
+
+          io
+            .to(data.roomId)
+            .emit(
+              "receive_message",
+              messageData
+            );
+
+          // ==================================
+          // AUTOMATICALLY STOP TYPING
+          // ==================================
+
+          socket
+            .to(data.roomId)
+            .emit(
+              "user_stop_typing",
+              {
+                roomId:
+                  String(
+                    data.roomId
+                  ),
+
+                userId:
+                  String(
+                    socket.userId
+                  ),
+
+                receiverId:
+                  String(
+                    receiverId
+                  ),
+              }
+            );
+
+        } catch (error) {
+
+          console.error(
+            "❌ Message save error:",
+            error
+          );
+
+          socket.emit(
+            "message_error",
+            {
+              message:
+                "Message could not be saved.",
+            }
+          );
+        }
+      }
+    );
+
+    // ======================================
+    // DISCONNECT
+    // ======================================
+
+    socket.on(
+      "disconnect",
+      (reason) => {
+
+        console.log(
+          "🔌 Socket disconnected:",
+          socket.id
+        );
+
+        console.log(
+          "Reason:",
+          reason
+        );
+
+        // ==================================
+        // REMOVE USER SOCKET
+        // ==================================
+
+        const result =
+          removeOnlineUser(
+            socket.id
+          );
+
+        // ==================================
+        // USER REALLY OFFLINE
+        // ==================================
+
+        if (
+          result &&
+          result.becameOffline
+        ) {
+
+          console.log(
+            `🔴 ${socket.username} is OFFLINE`
+          );
+
+          // ==================================
+          // NOTIFY ALL OTHER USERS
+          // ==================================
+
+          socket.broadcast.emit(
+            "user_offline",
+            {
+              userId:
+                result.userId,
+
+              username:
+                socket.username,
+            }
+          );
+        }
+      }
+    );
+  }
+);
 
 // ========================================
-// SERVER
+// SERVER START
 // ========================================
 
 const PORT =
@@ -947,11 +1373,57 @@ server.listen(
   () => {
 
     console.log(
-      `Server running on port ${PORT}`
+      "========================================"
     );
 
     console.log(
-      `Uploads directory: ${uploadsPath}`
+      `🚀 Server running on port ${PORT}`
+    );
+
+    console.log(
+      `📁 Uploads directory: ${uploadsPath}`
+    );
+
+    console.log(
+      "🔌 Socket.IO is enabled"
+    );
+
+    console.log(
+      "🟢 Online/Offline status enabled"
+    );
+
+    console.log(
+      "⌨️ Typing indicator enabled"
+    );
+
+    console.log(
+      "========================================"
+    );
+  }
+);
+
+// ========================================
+// GLOBAL ERROR HANDLING
+// ========================================
+
+process.on(
+  "uncaughtException",
+  (error) => {
+
+    console.error(
+      "❌ Uncaught Exception:",
+      error
+    );
+  }
+);
+
+process.on(
+  "unhandledRejection",
+  (error) => {
+
+    console.error(
+      "❌ Unhandled Rejection:",
+      error
     );
   }
 );

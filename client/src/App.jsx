@@ -3,7 +3,6 @@ import { io } from "socket.io-client";
 import "./App.css";
 
 function App() {
-
   // ========================================
   // AUTH
   // ========================================
@@ -11,25 +10,17 @@ function App() {
   const [isLogin, setIsLogin] = useState(true);
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    const token = sessionStorage.getItem("token");
+    const user = sessionStorage.getItem("user");
+    const sessionId = sessionStorage.getItem("sessionId");
 
-    const token =
-      sessionStorage.getItem("token");
-
-    const user =
-      sessionStorage.getItem("user");
-
-    return !!(
-      token &&
-      user
-    );
-
+    return !!(token && user && sessionId);
   });
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-
 
   // ========================================
   // USERS
@@ -39,15 +30,20 @@ function App() {
   const [searchText, setSearchText] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
 
+  // ========================================
+  // ONLINE USERS
+  // ========================================
+
+  // Contains IDs of users who currently have
+  // an authenticated Socket.IO connection.
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
 
   // ========================================
   // FILTER USERS
   // ========================================
 
   const filteredUsers = users.filter((user) => {
-
-    const search =
-      searchText.toLowerCase().trim();
+    const search = searchText.toLowerCase().trim();
 
     if (!search) {
       return true;
@@ -57,9 +53,7 @@ function App() {
       user.username?.toLowerCase().includes(search) ||
       user.email?.toLowerCase().includes(search)
     );
-
   });
-
 
   // ========================================
   // CHAT
@@ -69,13 +63,13 @@ function App() {
   const [messages, setMessages] = useState([]);
 
   // ========================================
-// TYPING INDICATOR
-// ========================================
-const [isTyping, setIsTyping] = useState(false);
+  // TYPING INDICATOR
+  // ========================================
 
-const typingTimeoutRef = useRef(null);
-const isTypingRef = useRef(false);
+  const [isTyping, setIsTyping] = useState(false);
 
+  const typingTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
 
   // ========================================
   // FILE UPLOAD
@@ -86,73 +80,66 @@ const isTypingRef = useRef(false);
 
   const fileInputRef = useRef(null);
 
-
   // ========================================
   // SOCKET
   // ========================================
 
   const socketRef = useRef(null);
-
   const selectedUserRef = useRef(null);
-
 
   // ========================================
   // BACKEND URL
   // ========================================
 
-  const API_URL =
-    "https://messenger-app-of9j.onrender.com";
-
+  const API_URL = "https://messenger-app-of9j.onrender.com";
 
   // ========================================
   // CURRENT USER
   // ========================================
 
   const getCurrentUser = () => {
-
     try {
-
-      return JSON.parse(
-        sessionStorage.getItem("user")
-      );
-
+      return JSON.parse(sessionStorage.getItem("user"));
     } catch {
-
       return null;
-
     }
-
   };
-
 
   // ========================================
   // GET SESSION ID
   // ========================================
 
   const getSessionId = () => {
-
-    return sessionStorage.getItem(
-      "sessionId"
-    );
-
+    return sessionStorage.getItem("sessionId");
   };
-
 
   // ========================================
   // CREATE ROOM ID
   // ========================================
 
   const createRoomId = (user1, user2) => {
-
-    return [
-      String(user1),
-      String(user2),
-    ]
+    return [String(user1), String(user2)]
       .sort()
       .join("_");
-
   };
 
+  // ========================================
+  // CHECK USER ONLINE
+  // ========================================
+
+  const isUserOnline = (user) => {
+    if (!user) {
+      return false;
+    }
+
+    const userId = user._id || user.id;
+
+    if (!userId) {
+      return false;
+    }
+
+    return onlineUsers.has(String(userId));
+  };
 
   // ========================================
   // STOP LOCAL TYPING
@@ -168,12 +155,23 @@ const isTypingRef = useRef(false);
       typingTimeoutRef.current = null;
     }
 
-    if (socket && socket.connected && selectedUser && currentUser) {
-      const currentUserId = currentUser._id || currentUser.id;
-      const selectedUserId = selectedUser._id || selectedUser.id;
+    if (
+      socket &&
+      socket.connected &&
+      selectedUser &&
+      currentUser
+    ) {
+      const currentUserId =
+        currentUser._id || currentUser.id;
+
+      const selectedUserId =
+        selectedUser._id || selectedUser.id;
 
       if (currentUserId && selectedUserId) {
-        const roomId = createRoomId(currentUserId, selectedUserId);
+        const roomId = createRoomId(
+          currentUserId,
+          selectedUserId
+        );
 
         if (isTypingRef.current) {
           socket.emit("stop_typing", {
@@ -200,26 +198,37 @@ const isTypingRef = useRef(false);
     const currentUser = getCurrentUser();
     const selectedUser = selectedUserRef.current;
 
-    if (!socket || !socket.connected || !currentUser || !selectedUser) {
+    if (
+      !socket ||
+      !socket.connected ||
+      !currentUser ||
+      !selectedUser
+    ) {
       return;
     }
 
-    const currentUserId = currentUser._id || currentUser.id;
-    const selectedUserId = selectedUser._id || selectedUser.id;
+    const currentUserId =
+      currentUser._id || currentUser.id;
+
+    const selectedUserId =
+      selectedUser._id || selectedUser.id;
 
     if (!currentUserId || !selectedUserId) {
       return;
     }
 
-    const roomId = createRoomId(currentUserId, selectedUserId);
+    const roomId = createRoomId(
+      currentUserId,
+      selectedUserId
+    );
 
-    // Empty input means typing has stopped.
+    // Empty input means typing stopped.
     if (!value.trim()) {
       stopTyping();
       return;
     }
 
-    // Send "typing" only once until the timeout fires.
+    // Send typing event only once.
     if (!isTypingRef.current) {
       socket.emit("typing", {
         roomId,
@@ -230,13 +239,16 @@ const isTypingRef = useRef(false);
       isTypingRef.current = true;
     }
 
-    // Reset the timer every time the user presses a key.
+    // Reset timeout whenever another key is pressed.
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
     typingTimeoutRef.current = setTimeout(() => {
-      if (socket.connected) {
+      if (
+        socket &&
+        socket.connected
+      ) {
         socket.emit("stop_typing", {
           roomId,
           userId: currentUserId,
@@ -254,93 +266,68 @@ const isTypingRef = useRef(false);
   // ========================================
 
   useEffect(() => {
-
     if (!isLoggedIn) {
       return;
     }
-
 
     // ======================================
     // CHECK SESSION
     // ======================================
 
-    const token =
-      sessionStorage.getItem("token");
-
-    const sessionId =
-      getSessionId();
-
+    const token = sessionStorage.getItem("token");
+    const sessionId = getSessionId();
 
     if (!token || !sessionId) {
-
       console.error(
         "❌ Authentication session missing"
       );
 
       return;
-
     }
 
-
     // ======================================
-    // GET CURRENT USER
+    // CURRENT USER
     // ======================================
 
-    const currentUser =
-      getCurrentUser();
+    const currentUser = getCurrentUser();
 
     const userId =
       currentUser?._id ||
       currentUser?.id;
 
-
     if (!userId) {
-
       console.error(
         "❌ User ID missing"
       );
 
       return;
-
     }
-
 
     console.log(
       "🔌 Connecting Socket.IO..."
     );
 
-
     // ======================================
     // CREATE SOCKET
     // ======================================
 
-    const newSocket =
-      io(
-        API_URL,
-        {
+    const newSocket = io(
+      API_URL,
+      {
+        transports: [
+          "polling",
+          "websocket",
+        ],
 
-          transports: [
-            "websocket",
-            "polling",
-          ],
+        auth: {
+          token,
+          sessionId,
+          userId,
+        },
+      }
+    );
 
-          auth: {
-
-            token,
-
-            sessionId,
-
-            userId,
-
-          },
-
-        }
-      );
-
-
-    socketRef.current =
-      newSocket;
-
+    socketRef.current = newSocket;
 
     // ======================================
     // SOCKET CONNECTED
@@ -349,12 +336,10 @@ const isTypingRef = useRef(false);
     newSocket.on(
       "connect",
       () => {
-
         console.log(
           "✅ Socket connected:",
           newSocket.id
         );
-
 
         const currentUser =
           getCurrentUser();
@@ -362,12 +347,34 @@ const isTypingRef = useRef(false);
         const selectedUser =
           selectedUserRef.current;
 
+        // ------------------------------------
+        // CURRENT USER IS ONLINE
+        // ------------------------------------
+
+        const currentUserId =
+          currentUser?._id ||
+          currentUser?.id;
+
+        if (currentUserId) {
+          setOnlineUsers((prev) => {
+            const next = new Set(prev);
+
+            next.add(
+              String(currentUserId)
+            );
+
+            return next;
+          });
+        }
+
+        // ------------------------------------
+        // REJOIN CURRENT ROOM
+        // ------------------------------------
 
         if (
           currentUser &&
           selectedUser
         ) {
-
           const currentUserId =
             currentUser._id ||
             currentUser.id;
@@ -376,37 +383,83 @@ const isTypingRef = useRef(false);
             selectedUser._id ||
             selectedUser.id;
 
-
           if (
             currentUserId &&
             selectedUserId
           ) {
-
             const roomId =
               createRoomId(
                 currentUserId,
                 selectedUserId
               );
 
-
             console.log(
               "🔄 Rejoining room:",
               roomId
             );
 
-
             newSocket.emit(
               "join_room",
               roomId
             );
-
           }
-
         }
-
       }
     );
 
+    // ======================================
+    // ONLINE USERS INITIAL LIST
+    // ======================================
+
+    newSocket.on(
+      "online_users",
+      (userIds) => {
+        if (!Array.isArray(userIds)) {
+          return;
+        }
+
+        setOnlineUsers(
+          new Set(
+            userIds.map((id) =>
+              String(id)
+            )
+          )
+        );
+      }
+    );
+
+    // ======================================
+    // USER ONLINE / OFFLINE
+    // ======================================
+
+    newSocket.on(
+      "user_status",
+      ({
+        userId,
+        status,
+      }) => {
+        if (!userId) {
+          return;
+        }
+
+        const normalizedId =
+          String(userId);
+
+        setOnlineUsers((prev) => {
+          const next = new Set(prev);
+
+          if (status === "online") {
+            next.add(normalizedId);
+          }
+
+          if (status === "offline") {
+            next.delete(normalizedId);
+          }
+
+          return next;
+        });
+      }
+    );
 
     // ======================================
     // SOCKET CONNECT ERROR
@@ -415,104 +468,49 @@ const isTypingRef = useRef(false);
     newSocket.on(
       "connect_error",
       (error) => {
+        console.error(
+          "❌ SOCKET CONNECTION ERROR"
+        );
 
         console.error(
-          "❌ Socket connection error:",
+          "Message:",
           error.message
         );
 
+        console.error(
+          "Description:",
+          error.description
+        );
+
+        console.error(
+          "Context:",
+          error.context
+        );
       }
     );
 
-
     // ======================================
-// USER TYPING
-// ======================================
-newSocket.on("user_typing", ({ userId, roomId }) => {
-  const currentUser = getCurrentUser();
-  const selectedUser = selectedUserRef.current;
-
-  if (!currentUser || !selectedUser) return;
-
-  const currentUserId =
-    currentUser._id || currentUser.id;
-
-  const selectedUserId =
-    selectedUser._id || selectedUser.id;
-
-  const currentRoomId =
-    createRoomId(
-      currentUserId,
-      selectedUserId
-    );
-
-  if (
-    String(roomId) === String(currentRoomId) &&
-    String(userId) === String(selectedUserId)
-  ) {
-    setIsTyping(true);
-  }
-});
-
-// ======================================
-// USER STOPPED TYPING
-// ======================================
-newSocket.on("user_stop_typing", ({ userId, roomId }) => {
-  const currentUser = getCurrentUser();
-  const selectedUser = selectedUserRef.current;
-
-  if (!currentUser || !selectedUser) return;
-
-  const currentUserId =
-    currentUser._id || currentUser.id;
-
-  const selectedUserId =
-    selectedUser._id || selectedUser.id;
-
-  const currentRoomId =
-    createRoomId(
-      currentUserId,
-      selectedUserId
-    );
-
-  if (
-    String(roomId) === String(currentRoomId) &&
-    String(userId) === String(selectedUserId)
-  ) {
-    setIsTyping(false);
-  }
-});
-
-    // ======================================
-    // RECEIVE MESSAGE
+    // USER TYPING
     // ======================================
 
     newSocket.on(
-      "receive_message",
-      (data) => {
-
-        console.log(
-          "📩 Received message:",
-          data
-        );
-
-
+      "user_typing",
+      ({
+        userId,
+        roomId,
+      }) => {
         const currentUser =
           getCurrentUser();
 
         const selectedUser =
           selectedUserRef.current;
 
-
         if (
           !currentUser ||
           !selectedUser
         ) {
-
           return;
-
         }
-
 
         const currentUserId =
           currentUser._id ||
@@ -522,10 +520,53 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
           selectedUser._id ||
           selectedUser.id;
 
+        const currentRoomId =
+          createRoomId(
+            currentUserId,
+            selectedUserId
+          );
 
-        // ==================================
-        // CURRENT CHAT ROOM
-        // ==================================
+        if (
+          String(roomId) ===
+            String(currentRoomId) &&
+          String(userId) ===
+            String(selectedUserId)
+        ) {
+          setIsTyping(true);
+        }
+      }
+    );
+
+    // ======================================
+    // USER STOPPED TYPING
+    // ======================================
+
+    newSocket.on(
+      "user_stop_typing",
+      ({
+        userId,
+        roomId,
+      }) => {
+        const currentUser =
+          getCurrentUser();
+
+        const selectedUser =
+          selectedUserRef.current;
+
+        if (
+          !currentUser ||
+          !selectedUser
+        ) {
+          return;
+        }
+
+        const currentUserId =
+          currentUser._id ||
+          currentUser.id;
+
+        const selectedUserId =
+          selectedUser._id ||
+          selectedUser.id;
 
         const currentRoomId =
           createRoomId(
@@ -533,103 +574,126 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
             selectedUserId
           );
 
+        if (
+          String(roomId) ===
+            String(currentRoomId) &&
+          String(userId) ===
+            String(selectedUserId)
+        ) {
+          setIsTyping(false);
+        }
+      }
+    );
+
+    // ======================================
+    // RECEIVE MESSAGE
+    // ======================================
+
+    newSocket.on(
+      "receive_message",
+      (data) => {
+        console.log(
+          "📩 Received message:",
+          data
+        );
+
+        const currentUser =
+          getCurrentUser();
+
+        const selectedUser =
+          selectedUserRef.current;
+
+        if (
+          !currentUser ||
+          !selectedUser
+        ) {
+          return;
+        }
+
+        const currentUserId =
+          currentUser._id ||
+          currentUser.id;
+
+        const selectedUserId =
+          selectedUser._id ||
+          selectedUser.id;
+
+        const currentRoomId =
+          createRoomId(
+            currentUserId,
+            selectedUserId
+          );
 
         // ==================================
-        // IGNORE OTHER CHAT MESSAGES
+        // IGNORE OTHER ROOM
         // ==================================
 
         if (
           String(data.roomId) !==
           String(currentRoomId)
         ) {
-
           console.log(
             "Ignoring message from another room:",
             data.roomId
           );
 
           return;
-
         }
-
 
         // ==================================
         // FORMAT MESSAGE
         // ==================================
 
         const formattedMessage = {
+          _id: data._id,
 
-          _id:
-            data._id,
+          roomId: data.roomId,
 
-          roomId:
-            data.roomId,
+          senderId: data.senderId,
 
-          senderId:
-            data.senderId,
+          receiverId: data.receiverId,
 
-          receiverId:
-            data.receiverId,
+          username: data.username,
 
-          username:
-            data.username,
+          text: data.message || "",
 
-          text:
-            data.message || "",
+          file: data.file || null,
 
-          file:
-            data.file || null,
-
-          time:
-            new Date(
-              data.timestamp
-            ).toLocaleTimeString(
-              [],
-              {
-                hour:
-                  "2-digit",
-
-                minute:
-                  "2-digit",
-              }
-            ),
-
+          time: new Date(
+            data.timestamp
+          ).toLocaleTimeString(
+            [],
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+            }
+          ),
         };
-
 
         // ==================================
         // ADD MESSAGE
         // ==================================
 
-        setMessages(
-          (prev) => {
-
-            if (
-              prev.some(
-                (msg) =>
-                  String(msg._id) ===
-                  String(
-                    formattedMessage._id
-                  )
-              )
-            ) {
-
-              return prev;
-
-            }
-
-
-            return [
-              ...prev,
-              formattedMessage,
-            ];
-
+        setMessages((prev) => {
+          if (
+            prev.some(
+              (msg) =>
+                String(msg._id) ===
+                String(
+                  formattedMessage._id
+                )
+            )
+          ) {
+            return prev;
           }
-        );
 
+          return [
+            ...prev,
+            formattedMessage,
+          ];
+        });
       }
     );
-
 
     // ======================================
     // MESSAGE ERROR
@@ -638,7 +702,6 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
     newSocket.on(
       "message_error",
       (data) => {
-
         console.error(
           "❌ Message error:",
           data.message
@@ -646,12 +709,10 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
 
         alert(
           data.message ||
-          "Message could not be sent."
+            "Message could not be sent."
         );
-
       }
     );
-
 
     // ======================================
     // DISCONNECT
@@ -660,29 +721,33 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
     newSocket.on(
       "disconnect",
       (reason) => {
-
         console.log(
           "❌ Socket disconnected:",
           reason
         );
 
+        // Do NOT manually remove current user here.
+        // Server will broadcast offline status only
+        // when the user's last active socket disconnects.
       }
     );
-
 
     // ======================================
     // CLEANUP
     // ======================================
 
     return () => {
-
       console.log(
         "🔌 Cleaning Socket.IO connection..."
       );
 
       if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
+        clearTimeout(
+          typingTimeoutRef.current
+        );
+
+        typingTimeoutRef.current =
+          null;
       }
 
       isTypingRef.current = false;
@@ -690,46 +755,34 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
 
       newSocket.disconnect();
 
-      socketRef.current =
-        null;
-
+      socketRef.current = null;
     };
-
   }, [isLoggedIn]);
-
 
   // ========================================
   // FETCH USERS
   // ========================================
 
   useEffect(() => {
-
     const fetchUsers = async () => {
-
       const currentUser =
         getCurrentUser();
-
 
       if (!currentUser) {
         return;
       }
 
-
       const currentUserId =
         currentUser._id ||
         currentUser.id;
 
-
       if (!currentUserId) {
-
         console.error(
           "❌ Current user ID not found"
         );
 
         return;
-
       }
-
 
       const token =
         sessionStorage.getItem("token");
@@ -737,114 +790,71 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       const sessionId =
         getSessionId();
 
-
       if (!token || !sessionId) {
-
         console.error(
           "❌ Authentication session missing"
         );
 
         return;
-
       }
 
-
       try {
-
         const response =
           await fetch(
             `${API_URL}/api/users/${currentUserId}`,
             {
-
               headers: {
-
                 Authorization:
                   `Bearer ${token}`,
 
                 "X-Session-ID":
                   sessionId,
-
               },
-
             }
           );
-
 
         const data =
           await response.json();
 
-
         if (!response.ok) {
-
           console.error(
             data.message
           );
 
           return;
-
         }
 
-
         if (data.success) {
-
           setUsers(
             data.users
           );
-
         }
-
       } catch (error) {
-
         console.error(
           "❌ Failed to fetch users:",
           error
         );
-
       }
-
     };
 
-
     if (isLoggedIn) {
-
       fetchUsers();
-
     }
-
   }, [isLoggedIn]);
-
 
   // ========================================
   // LOGIN / REGISTER
   // ========================================
 
   const handleSubmit = async (e) => {
-
     e.preventDefault();
 
     setMessage("");
-
-
-    // ======================================
-    // API ENDPOINT
-    // ======================================
 
     const endpoint =
       isLogin
         ? `${API_URL}/api/auth/login`
         : `${API_URL}/api/auth/register`;
-
-
-    // ======================================
-    // REQUEST BODY
-    // ======================================
-    //
-    // IMPORTANT:
-    // Session ID is NOT generated on frontend.
-    //
-    // Backend is responsible for creating
-    // or reusing the session ID.
-    //
 
     const body =
       isLogin
@@ -858,59 +868,36 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
             password,
           };
 
-
     try {
-
       const response =
         await fetch(
           endpoint,
           {
-
-            method:
-              "POST",
+            method: "POST",
 
             headers: {
-
               "Content-Type":
                 "application/json",
-
             },
 
             body:
-              JSON.stringify(
-                body
-              ),
-
+              JSON.stringify(body),
           }
         );
-
 
       const data =
         await response.json();
 
-
-      // ====================================
-      // ERROR
-      // ====================================
-
       if (!response.ok) {
-
         setMessage(
           data.message ||
-          "Something went wrong"
+            "Something went wrong"
         );
 
         return;
-
       }
 
-
-      // ====================================
-      // VERIFY SERVER SESSION
-      // ====================================
-
       if (!data.sessionId) {
-
         console.error(
           "❌ Server did not return session ID"
         );
@@ -920,86 +907,54 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
         );
 
         return;
-
       }
-
-
-      // ====================================
-      // SAVE SERVER SESSION
-      // ====================================
 
       sessionStorage.setItem(
         "token",
         data.token
       );
 
-
       sessionStorage.setItem(
         "user",
-        JSON.stringify(
-          data.user
-        )
+        JSON.stringify(data.user)
       );
-
-
-      // IMPORTANT:
-      // Save session ID returned by backend
 
       sessionStorage.setItem(
         "sessionId",
         data.sessionId
       );
 
-
       console.log(
         "✅ Server session ID:",
         data.sessionId
       );
 
-
-      // ====================================
-      // SUCCESS
-      // ====================================
-
       setMessage(
         data.message ||
-        "Authentication successful"
+          "Authentication successful"
       );
-
 
       setPassword("");
 
       setIsLoggedIn(true);
-
     } catch (error) {
-
       console.error(
         "Authentication error:",
         error
       );
 
-
       setMessage(
         "Cannot connect to server"
       );
-
     }
-
   };
-
 
   // ========================================
   // LOGOUT
   // ========================================
 
   const logout = () => {
-
-    // Stop any active typing indicator before logging out.
     stopTyping();
-
-    // ======================================
-    // REMOVE SESSION
-    // ======================================
 
     sessionStorage.removeItem(
       "token"
@@ -1013,78 +968,56 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       "sessionId"
     );
 
-
-    // ======================================
-    // DISCONNECT SOCKET
-    // ======================================
-
     if (socketRef.current) {
-
       socketRef.current.disconnect();
 
-      socketRef.current =
-        null;
-
+      socketRef.current = null;
     }
-
-
-    // ======================================
-    // RESET APPLICATION
-    // ======================================
 
     setIsLoggedIn(false);
 
     setSelectedUser(null);
 
-    selectedUserRef.current =
-      null;
+    selectedUserRef.current = null;
 
     setMessages([]);
 
     setUsers([]);
+
+    setOnlineUsers(new Set());
 
     setText("");
 
     setSelectedFile(null);
 
     setUploading(false);
-
   };
-
 
   // ========================================
   // SELECT USER
   // ========================================
 
   const selectUser = async (user) => {
-
-    // Stop typing in the previous chat before switching rooms.
     stopTyping();
 
     setSelectedUser(user);
 
-    selectedUserRef.current =
-      user;
+    selectedUserRef.current = user;
 
     setIsTyping(false);
 
     setMessages([]);
 
-
     const currentUser =
       getCurrentUser();
 
-
     if (!currentUser) {
-
       console.error(
         "❌ Current user not found"
       );
 
       return;
-
     }
-
 
     const currentUserId =
       currentUser._id ||
@@ -1094,24 +1027,16 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       user._id ||
       user.id;
 
-
     if (
       !currentUserId ||
       !selectedUserId
     ) {
-
       console.error(
         "❌ User ID missing"
       );
 
       return;
-
     }
-
-
-    // ======================================
-    // CREATE ROOM
-    // ======================================
 
     const roomId =
       createRoomId(
@@ -1119,16 +1044,10 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
         selectedUserId
       );
 
-
     console.log(
       "🏠 Room ID:",
       roomId
     );
-
-
-    // ======================================
-    // CHECK AUTH SESSION
-    // ======================================
 
     const token =
       sessionStorage.getItem("token");
@@ -1136,9 +1055,7 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
     const sessionId =
       getSessionId();
 
-
     if (!token || !sessionId) {
-
       console.error(
         "❌ Session authentication missing"
       );
@@ -1146,79 +1063,49 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       logout();
 
       return;
-
     }
-
-
-    // ======================================
-    // SOCKET
-    // ======================================
 
     const socket =
       socketRef.current;
-
 
     if (
       !socket ||
       !socket.connected
     ) {
-
       console.error(
         "❌ Socket not connected"
       );
 
       return;
-
     }
-
-
-    // ======================================
-    // JOIN ROOM
-    // ======================================
 
     socket.emit(
       "join_room",
       roomId
     );
 
-
-    // ======================================
-    // LOAD OLD MESSAGES
-    // ======================================
-
     try {
-
       const response =
         await fetch(
           `${API_URL}/api/messages/${roomId}`,
           {
-
             headers: {
-
               Authorization:
                 `Bearer ${token}`,
 
               "X-Session-ID":
                 sessionId,
-
             },
-
           }
         );
-
 
       const data =
         await response.json();
 
-
-      if (
-        data.success
-      ) {
-
+      if (data.success) {
         const formattedMessages =
           data.messages.map(
             (msg) => ({
-
               _id:
                 msg._id,
 
@@ -1248,74 +1135,52 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                 ).toLocaleTimeString(
                   [],
                   {
-
                     hour:
                       "2-digit",
 
                     minute:
                       "2-digit",
-
                   }
                 ),
-
             })
           );
-
 
         setMessages(
           formattedMessages
         );
-
       }
-
     } catch (error) {
-
       console.error(
         "❌ Failed to load chat history:",
         error
       );
-
     }
-
   };
-
 
   // ========================================
   // SELECT FILE
   // ========================================
 
   const handleFileSelect = (e) => {
-
     const file =
       e.target.files?.[0];
-
 
     if (!file) {
       return;
     }
 
-
-    // ======================================
-    // MAX FILE SIZE = 20 MB
-    // ======================================
-
     const maxSize =
       20 * 1024 * 1024;
 
-
     if (file.size > maxSize) {
-
       alert(
         "File size must be less than 20 MB."
       );
 
-      e.target.value =
-        "";
+      e.target.value = "";
 
       return;
-
     }
-
 
     setSelectedFile(file);
 
@@ -1323,71 +1188,49 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       "📎 Selected file:",
       file.name
     );
-
   };
-
 
   // ========================================
   // OPEN FILE SELECTOR
   // ========================================
 
   const handleFileClick = () => {
-
-    if (
-      fileInputRef.current
-    ) {
-
+    if (fileInputRef.current) {
       fileInputRef.current.click();
-
     }
-
   };
-
 
   // ========================================
   // REMOVE SELECTED FILE
   // ========================================
 
   const removeSelectedFile = () => {
-
     setSelectedFile(null);
 
-
-    if (
-      fileInputRef.current
-    ) {
-
+    if (fileInputRef.current) {
       fileInputRef.current.value =
         "";
-
     }
-
   };
-
 
   // ========================================
   // UPLOAD FILE
   // ========================================
 
   const uploadFile = async (file) => {
-
     try {
-
       const formData =
         new FormData();
-
 
       formData.append(
         "file",
         file
       );
 
-
       console.log(
         "📤 Uploading file:",
         file.name
       );
-
 
       const token =
         sessionStorage.getItem("token");
@@ -1395,96 +1238,70 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       const sessionId =
         getSessionId();
 
-
       if (!token || !sessionId) {
-
         throw new Error(
           "Authentication session expired."
         );
-
       }
-
 
       const response =
         await fetch(
           `${API_URL}/api/files/upload`,
           {
-
-            method:
-              "POST",
+            method: "POST",
 
             headers: {
-
               Authorization:
                 `Bearer ${token}`,
 
               "X-Session-ID":
                 sessionId,
-
             },
 
-            body:
-              formData,
-
+            body: formData,
           }
         );
-
 
       const data =
         await response.json();
 
-
       if (!response.ok) {
-
         throw new Error(
           data.message ||
-          "File upload failed"
+            "File upload failed"
         );
-
       }
-
 
       console.log(
         "✅ File uploaded:",
         data.file
       );
 
-
       return data.file;
-
     } catch (error) {
-
       console.error(
         "❌ File upload error:",
         error
       );
 
       throw error;
-
     }
-
   };
-
 
   // ========================================
   // DOWNLOAD FILE
   // ========================================
 
   const downloadFile = async (file) => {
-
     try {
-
       if (
         !file ||
         !file.fileUrl
       ) {
-
         throw new Error(
           "File URL not found"
         );
-
       }
-
 
       const token =
         sessionStorage.getItem("token");
@@ -1492,166 +1309,114 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       const sessionId =
         getSessionId();
 
-
       if (!token || !sessionId) {
-
         throw new Error(
           "Authentication session expired."
         );
-
       }
-
 
       const fileUrl =
         `${API_URL}${file.fileUrl}`;
-
 
       console.log(
         "⬇️ Downloading:",
         fileUrl
       );
 
-
       const response =
         await fetch(
           fileUrl,
           {
-
             headers: {
-
               Authorization:
                 `Bearer ${token}`,
 
               "X-Session-ID":
                 sessionId,
-
             },
-
           }
         );
 
-
       if (!response.ok) {
-
         throw new Error(
           "File download failed"
         );
-
       }
-
 
       const blob =
         await response.blob();
-
 
       const blobUrl =
         window.URL.createObjectURL(
           blob
         );
 
-
       const link =
         document.createElement(
           "a"
         );
 
-
-      link.href =
-        blobUrl;
-
+      link.href = blobUrl;
 
       link.download =
         file.originalName ||
         "download";
 
-
       document.body.appendChild(
         link
       );
 
-
       link.click();
-
 
       document.body.removeChild(
         link
       );
 
-
       window.URL.revokeObjectURL(
         blobUrl
       );
-
-
     } catch (error) {
-
       console.error(
         "❌ File download error:",
         error
       );
 
-
       alert(
         error.message ||
-        "Unable to download file."
+          "Unable to download file."
       );
-
     }
-
   };
-
 
   // ========================================
   // SEND MESSAGE
   // ========================================
 
   const sendMessage = async () => {
-
-    // Sending a message always ends the typing state.
     stopTyping();
 
-    // ======================================
-    // SELECTED USER CHECK
-    // ======================================
-
     if (!selectedUser) {
-
       console.error(
         "❌ No user selected"
       );
 
       return;
-
     }
-
-
-    // ======================================
-    // TEXT + FILE CHECK
-    // ======================================
 
     if (
       !text.trim() &&
       !selectedFile
     ) {
-
       return;
-
     }
-
-
-    // ======================================
-    // SOCKET CHECK
-    // ======================================
 
     const socket =
       socketRef.current;
-
 
     if (
       !socket ||
       !socket.connected
     ) {
-
       console.error(
         "❌ Socket not connected"
       );
@@ -1661,13 +1426,7 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       );
 
       return;
-
     }
-
-
-    // ======================================
-    // AUTH SESSION CHECK
-    // ======================================
 
     const token =
       sessionStorage.getItem("token");
@@ -1675,9 +1434,7 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
     const sessionId =
       getSessionId();
 
-
     if (!token || !sessionId) {
-
       console.error(
         "❌ Session expired"
       );
@@ -1685,28 +1442,18 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       logout();
 
       return;
-
     }
-
-
-    // ======================================
-    // CURRENT USER
-    // ======================================
 
     const currentUser =
       getCurrentUser();
 
-
     if (!currentUser) {
-
       console.error(
         "❌ Current user not found"
       );
 
       return;
-
     }
-
 
     const currentUserId =
       currentUser._id ||
@@ -1716,40 +1463,23 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       selectedUser._id ||
       selectedUser.id;
 
-
-    // ======================================
-    // ROOM ID
-    // ======================================
-
     const roomId =
       createRoomId(
         currentUserId,
         selectedUserId
       );
 
-
-    // ======================================
-    // FILE UPLOAD
-    // ======================================
-
-    let uploadedFile =
-      null;
-
+    let uploadedFile = null;
 
     if (selectedFile) {
-
       try {
-
         setUploading(true);
-
 
         uploadedFile =
           await uploadFile(
             selectedFile
           );
-
       } catch (error) {
-
         console.error(
           "❌ Could not upload file:",
           error
@@ -1757,47 +1487,33 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
 
         alert(
           error.message ||
-          "File upload failed."
+            "File upload failed."
         );
 
         setUploading(false);
 
         return;
-
       }
 
       setUploading(false);
-
     }
-
-
-    // ======================================
-    // SEND MESSAGE THROUGH SOCKET
-    // ======================================
 
     console.log(
       "📤 Sending message:",
       {
-
         roomId,
-
         receiverId:
           selectedUserId,
-
         message:
           text.trim(),
-
         file:
           uploadedFile,
-
       }
     );
-
 
     socket.emit(
       "send_message",
       {
-
         roomId,
 
         senderId:
@@ -1813,117 +1529,81 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
           uploadedFile,
 
         sessionId,
-
       }
     );
-
-
-    // ======================================
-    // CLEAR INPUT
-    // ======================================
 
     setText("");
 
     setSelectedFile(null);
 
-
-    if (
-      fileInputRef.current
-    ) {
-
+    if (fileInputRef.current) {
       fileInputRef.current.value =
         "";
-
     }
-
   };
-
 
   // ========================================
   // ENTER KEY
   // ========================================
 
   const handleMessageKeyDown = (e) => {
-
     if (
       e.key === "Enter" &&
       !e.shiftKey
     ) {
-
       e.preventDefault();
 
       sendMessage();
-
     }
-
   };
-
 
   // ========================================
   // FILE SIZE FORMAT
   // ========================================
 
   const formatFileSize = (bytes) => {
-
     if (!bytes) {
       return "";
     }
 
-
-    if (
-      bytes < 1024
-    ) {
-
+    if (bytes < 1024) {
       return `${bytes} B`;
-
     }
 
-
     if (
-      bytes < 1024 * 1024
+      bytes <
+      1024 * 1024
     ) {
-
       return `${(
         bytes / 1024
       ).toFixed(1)} KB`;
-
     }
-
 
     return `${(
       bytes /
       (1024 * 1024)
     ).toFixed(1)} MB`;
-
   };
-
 
   // ========================================
   // FILE ICON
   // ========================================
 
   const getFileIcon = (fileType) => {
-
     if (
       fileType?.startsWith(
         "image/"
       )
     ) {
-
       return "🖼️";
-
     }
-
 
     if (
       fileType ===
-        "application/pdf"
+      "application/pdf"
     ) {
-
       return "📕";
-
     }
-
 
     if (
       fileType?.includes(
@@ -1936,22 +1616,16 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
         "csv"
       )
     ) {
-
       return "📊";
-
     }
-
 
     if (
       fileType?.includes(
         "word"
       )
     ) {
-
       return "📘";
-
     }
-
 
     if (
       fileType?.includes(
@@ -1961,56 +1635,40 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
         "compressed"
       )
     ) {
-
       return "🗜️";
-
     }
 
-
     return "📄";
-
   };
-
 
   // ========================================
   // AUTH PAGE
   // ========================================
 
   if (!isLoggedIn) {
-
     return (
-
       <div className="auth-page">
-
         <div className="auth-card">
-
           <div className="logo">
             💬
           </div>
-
 
           <h1>
             Messenger
           </h1>
 
-
           <p className="subtitle">
-
             {isLogin
               ? "Welcome back!"
               : "Create your messenger account"}
-
           </p>
-
 
           <form
             onSubmit={
               handleSubmit
             }
           >
-
             {!isLogin && (
-
               <input
                 type="text"
                 placeholder="Username"
@@ -2024,9 +1682,7 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                 }
                 required
               />
-
             )}
-
 
             <input
               type="email"
@@ -2042,7 +1698,6 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
               required
             />
 
-
             <input
               type="password"
               placeholder="Password"
@@ -2057,104 +1712,65 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
               required
             />
 
-
             <button
               type="submit"
             >
-
               {isLogin
                 ? "Login"
                 : "Create Account"}
-
             </button>
-
           </form>
 
-
           {message && (
-
             <p className="auth-message">
               {message}
             </p>
-
           )}
 
-
           <div className="switch-auth">
-
             {isLogin ? (
-
               <>
-
                 Don't have an
                 account?{" "}
 
                 <button
                   type="button"
                   onClick={() => {
-
-                    setIsLogin(
-                      false
-                    );
-
+                    setIsLogin(false);
                     setMessage("");
-
                   }}
                 >
-
                   Register
-
                 </button>
-
               </>
-
             ) : (
-
               <>
-
                 Already have an
                 account?{" "}
 
                 <button
                   type="button"
                   onClick={() => {
-
-                    setIsLogin(
-                      true
-                    );
-
+                    setIsLogin(true);
                     setMessage("");
-
                   }}
                 >
-
                   Login
-
                 </button>
-
               </>
-
             )}
-
           </div>
-
         </div>
-
       </div>
-
     );
-
   }
-
 
   // ========================================
   // MESSENGER
   // ========================================
 
   return (
-
     <div className="messenger">
-
 
       {/* ==================================
           SIDEBAR
@@ -2163,11 +1779,9 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       <aside className="sidebar">
 
         <div className="sidebar-header">
-
           <h2>
             Messenger
           </h2>
-
 
           <button
             className="logout"
@@ -2175,29 +1789,27 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
               logout
             }
           >
-
             Logout
-
           </button>
-
         </div>
-
 
         <input
           className="search"
           type="text"
           placeholder="Search users..."
-          value={searchText}
+          value={
+            searchText
+          }
           onChange={(e) =>
-            setSearchText(e.target.value)
+            setSearchText(
+              e.target.value
+            )
           }
         />
-
 
         <div className="user-list">
 
           {users.length === 0 ? (
-
             <div
               style={{
                 padding:
@@ -2208,14 +1820,10 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                   "#777",
               }}
             >
-
               No other users
               found.
-
             </div>
-
           ) : filteredUsers.length === 0 ? (
-
             <div
               style={{
                 padding:
@@ -2226,28 +1834,25 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                   "#777",
               }}
             >
-
               No users found
-
             </div>
-
           ) : (
-
             filteredUsers.map(
               (user) => {
-
                 const userId =
                   user._id ||
                   user.id;
-
 
                 const selectedId =
                   selectedUser?._id ||
                   selectedUser?.id;
 
+                const userOnline =
+                  isUserOnline(
+                    user
+                  );
 
                 return (
-
                   <div
                     key={
                       userId
@@ -2270,15 +1875,12 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                   >
 
                     <div className="avatar">
-
                       {user.username
                         ?.charAt(
                           0
                         )
                         .toUpperCase()}
-
                     </div>
-
 
                     <div className="user-info">
 
@@ -2288,34 +1890,36 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                           user.username
                         }
 
-                        <span className="online-dot"></span>
+                        <span
+                          className={`online-dot ${
+                            userOnline
+                              ? "online"
+                              : "offline"
+                          }`}
+                        ></span>
 
                       </div>
 
-
-                      <div className="last-message">
-
-                        Click to
-                        start
-                        chatting
-
+                      <div
+                        className={`last-message ${
+                          userOnline
+                            ? "user-online-text"
+                            : "user-offline-text"
+                        }`}
+                      >
+                        {userOnline
+                          ? "Online"
+                          : "Offline"}
                       </div>
 
                     </div>
-
                   </div>
-
                 );
-
               }
             )
-
           )}
-
         </div>
-
       </aside>
-
 
       {/* ==================================
           CHAT
@@ -2324,19 +1928,16 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
       <main className="chat">
 
         {!selectedUser ? (
-
           <div className="empty-chat">
 
             <div className="empty-icon">
               💬
             </div>
 
-
             <h2>
               Welcome to
               Messenger
             </h2>
-
 
             <p>
               Select a user
@@ -2345,11 +1946,8 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
             </p>
 
           </div>
-
         ) : (
-
           <>
-
             {/* ==============================
                 CHAT HEADER
             ============================== */}
@@ -2357,18 +1955,15 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
             <header className="chat-header">
 
               <div className="avatar">
-
                 {selectedUser
                   .username
                   ?.charAt(
                     0
                   )
                   .toUpperCase()}
-
               </div>
 
-
-              <div>
+              <div className="chat-user-details">
 
                 <h3>
                   {
@@ -2376,22 +1971,35 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                   }
                 </h3>
 
-                <span
-                  className={
-                    isTyping
-                      ? "typing-status"
-                      : ""
-                  }
-                >
-                  {isTyping
-                    ? "typing..."
-                    : "Online"}
-                </span>
+                {/* IMPORTANT:
+                    typing replaces online/offline
+                    so they never overlap.
+                */}
+
+                {isTyping ? (
+                  <span className="typing-status">
+                    typing...
+                  </span>
+                ) : (
+                  <span
+                    className={`presence-status ${
+                      isUserOnline(
+                        selectedUser
+                      )
+                        ? "online-status"
+                        : "offline-status"
+                    }`}
+                  >
+                    {isUserOnline(
+                      selectedUser
+                    )
+                      ? "Online"
+                      : "Offline"}
+                  </span>
+                )}
 
               </div>
-
             </header>
-
 
             {/* ==============================
                 MESSAGES
@@ -2401,29 +2009,21 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
 
               {messages.length ===
                 0 && (
-
                 <div className="no-messages">
-
                   No messages
                   yet. Say
                   hello 👋
-
                 </div>
-
               )}
-
 
               {messages.map(
                 (msg) => {
-
                   const currentUser =
                     getCurrentUser();
-
 
                   const currentUserId =
                     currentUser?._id ||
                     currentUser?.id;
-
 
                   const isMine =
                     String(
@@ -2433,9 +2033,7 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                       currentUserId
                     );
 
-
                   return (
-
                     <div
                       key={
                         String(
@@ -2451,35 +2049,20 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
 
                       <div className="message">
 
-                        {/* ==========================
-                            TEXT MESSAGE
-                        ========================== */}
-
                         {msg.text && (
-
                           <p>
                             {
                               msg.text
                             }
                           </p>
-
                         )}
 
-
-                        {/* ==========================
-                            FILE MESSAGE
-                        ========================== */}
-
                         {msg.file && (
-
                           <div className="file-message">
-
-                            {/* IMAGE PREVIEW */}
 
                             {msg.file.fileType?.startsWith(
                               "image/"
                             ) ? (
-
                               <div className="image-file-preview">
 
                                 <img
@@ -2494,52 +2077,37 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                                 />
 
                               </div>
-
                             ) : (
-
                               <div className="file-info">
 
                                 <div className="file-icon">
-
                                   {
                                     getFileIcon(
                                       msg.file.fileType
                                     )
                                   }
-
                                 </div>
-
 
                                 <div className="file-details">
 
                                   <strong>
-
                                     {
                                       msg.file.originalName ||
                                       "File"
                                     }
-
                                   </strong>
 
-
                                   <small>
-
                                     {
                                       formatFileSize(
                                         msg.file.fileSize
                                       )
                                     }
-
                                   </small>
 
                                 </div>
-
                               </div>
-
                             )}
-
-
-                            {/* DOWNLOAD BUTTON */}
 
                             <button
                               type="button"
@@ -2552,7 +2120,6 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                               title="Download"
                               aria-label="Download file"
                             >
-
                               <svg
                                 width="22"
                                 height="22"
@@ -2560,7 +2127,6 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                                 fill="none"
                                 xmlns="http://www.w3.org/2000/svg"
                               >
-
                                 <path
                                   d="M12 3V15"
                                   stroke="currentColor"
@@ -2582,19 +2148,11 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                                   strokeWidth="2"
                                   strokeLinecap="round"
                                 />
-
                               </svg>
-
                             </button>
 
                           </div>
-
                         )}
-
-
-                        {/* ==========================
-                            TIME
-                        ========================== */}
 
                         <span>
                           {
@@ -2603,63 +2161,46 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                         </span>
 
                       </div>
-
                     </div>
-
                   );
-
                 }
               )}
-
             </div>
-
 
             {/* ==============================
                 SELECTED FILE PREVIEW
             ============================== */}
 
             {selectedFile && (
-
               <div className="selected-file">
 
                 <div className="selected-file-info">
 
                   <span className="selected-file-icon">
-
                     {
                       getFileIcon(
                         selectedFile.type
                       )
                     }
-
                   </span>
 
-
                   <div>
-
                     <strong>
-
                       {
                         selectedFile.name
                       }
-
                     </strong>
 
-
                     <small>
-
                       {
                         formatFileSize(
                           selectedFile.size
                         )
                       }
-
                     </small>
-
                   </div>
 
                 </div>
-
 
                 <button
                   type="button"
@@ -2671,23 +2212,17 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                     uploading
                   }
                 >
-
                   ×
-
                 </button>
 
               </div>
-
             )}
-
 
             {/* ==============================
                 INPUT
             ============================== */}
 
             <div className="message-input">
-
-              {/* HIDDEN FILE INPUT */}
 
               <input
                 ref={
@@ -2703,9 +2238,6 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                 }}
               />
 
-
-              {/* PLUS BUTTON */}
-
               <button
                 type="button"
                 className="file-upload-btn"
@@ -2717,13 +2249,8 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                 }
                 title="Attach file"
               >
-
                 +
-
               </button>
-
-
-              {/* TEXT INPUT */}
 
               <input
                 type="text"
@@ -2748,9 +2275,6 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                 }
               />
 
-
-              {/* SEND BUTTON */}
-
               <button
                 onClick={
                   sendMessage
@@ -2763,25 +2287,17 @@ newSocket.on("user_stop_typing", ({ userId, roomId }) => {
                   )
                 }
               >
-
                 {uploading
                   ? "Uploading..."
                   : "Send"}
-
               </button>
 
             </div>
-
           </>
-
         )}
-
       </main>
-
     </div>
-
   );
-
 }
 
 export default App;
