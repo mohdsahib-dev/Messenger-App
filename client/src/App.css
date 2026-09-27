@@ -1,30 +1,33 @@
 :root {
-  --primary: #00a884;
-  --primary-hover: #008f72;
-  --accent: #25d366;
+  --primary: #7F1D3A;
+  --primary-hover: #64152E;
 
-  --bg: #efeae2;
-  --sidebar-bg: #ffffff;
-  --header-bg: #f0f2f5;
-  --card: #ffffff;
+  --accent: #A83255;
 
-  --text: #111b21;
-  --text-secondary: #667781;
-  --text-muted: #8696a0;
+  --bg: #FAF7F2;
+  --sidebar-bg: #F0E9E1;
+  --header-bg: #F5EFE8;
+  --card: #FFFFFF;
 
-  --border: #e9edef;
-  --border-dark: #d1d7db;
+  --text: #241A1D;
+  --text-secondary: #6F6266;
+  --text-muted: #9A8D91;
 
-  --success: #25d366;
-  --danger: #ea0038;
-  --danger-hover: #c90030;
+  --border: #E8DED5;
+  --border-dark: #D6C8BE;
 
-  --message-me: #d9fdd3;
-  --message-other: #ffffff;
+  --success: #3F8F68;
 
-  --hover: #f5f6f6;
-  --active: #f0f2f5;
-  --input-bg: #ffffff;
+  --danger: #B4233F;
+  --danger-hover: #941D35;
+
+  --message-me: #8F2748;
+  --message-other: #E8DED5;
+
+  --hover: #F3ECE6;
+  --active: #EDE1E5;
+
+  --input-bg: #FFFFFF;
 }
 
 
@@ -73,9 +76,9 @@ body {
   background:
     linear-gradient(
       135deg,
-      #dff5ed 0%,
-      #f0f2f5 55%,
-      #e6f6f1 100%
+      #F3E3E8 0%,
+      #F5EFE8 55%,
+      #EDE1E5 100%
     );
 
   overflow: auto;
@@ -94,7 +97,7 @@ body {
   border-radius: 10px;
 
   box-shadow:
-    0 8px 28px rgba(11, 20, 26, 0.14);
+    0 8px 28px rgba(36, 26, 29, 0.14);
 
   text-align: center;
 }
@@ -107,7 +110,7 @@ body {
 
   filter:
     drop-shadow(
-      0 4px 8px rgba(0, 168, 132, 0.18)
+      0 4px 8px rgba(127, 29, 58, 0.18)
     );
 }
 
@@ -141,7 +144,7 @@ body {
 
   outline: none;
 
-  background: #ffffff;
+  background: #FFFFFF;
   color: var(--text);
 
   transition:
@@ -150,14 +153,14 @@ body {
 }
 
 .auth-card input:hover {
-  border-color: #b7c0c6;
+  border-color: #C8B9B0;
 }
 
 .auth-card input:focus {
   border-color: var(--primary);
 
   box-shadow:
-    0 0 0 2px rgba(0, 168, 132, 0.12);
+    0 0 0 2px rgba(127, 29, 58, 0.12);
 }
 
 .auth-card form button {
@@ -168,7 +171,7 @@ body {
 
   background: var(--primary);
 
-  color: #ffffff;
+  color: #FFFFFF;
 
   font-size: 16px;
   font-weight: 600;
@@ -330,8 +333,8 @@ body {
   border-radius: 8px;
 
   background:
-    #f0f2f5
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23667781' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-4-4'/%3E%3C/svg%3E")
+    #F5EFE8
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%236F6266' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-4-4'/%3E%3C/svg%3E")
     no-repeat 14px center;
 
   color: var(--text);
@@ -350,7 +353,7 @@ body {
 }
 
 .search:focus {
-  background-color: #ffffff;
+  background-color: #FFFFFF;
 
   box-shadow:
     inset 0 0 0 1px var(--border-dark);
@@ -377,12 +380,12 @@ body {
 }
 
 .user-list::-webkit-scrollbar-thumb {
-  background: #d1d7db;
+  background: #D6C8BE;
   border-radius: 10px;
 }
 
 .user-list::-webkit-scrollbar-thumb:hover {
-  background: #b8c1c6;
+  background: #C4B3AA;
 }
 
 .user-list::-webkit-scrollbar-track {
@@ -446,7 +449,7 @@ body {
       var(--accent)
     );
 
-  color: #ffffff;
+  color: #FFFFFF;
 
   display: flex;
   align-items: center;
@@ -537,7 +540,7 @@ body {
 
   overflow: hidden;
 
-  background: #efeae2;
+  background: #FAF7F2;
 }
 
 
@@ -649,19 +652,19 @@ body {
 
   overscroll-behavior: contain;
 
-  background-color: #efeae2;
+  background-color: #FAF7F2;
 
   background-image:
     radial-gradient(
       circle at 20% 20%,
-      rgba(255, 255, 255, 0.13) 0,
-      rgba(255, 255, 255, 0.13) 1px,
+      rgba(255, 255, 255, 0.30) 0,
+      rgba(255, 255, 255, 0.30) 1px,
       transparent 1px
     ),
     radial-gradient(
       circle at 70% 70%,
-      rgba(0, 0, 0, 0.025) 0,
-      rgba(0, 0, 0, 0.025) 1px,
+      rgba(127, 29, 58, 0.025) 0,
+      rgba(127, 29, 58, 0.025) 1px,
       transparent 1px
     );
 
@@ -675,12 +678,12 @@ body {
 }
 
 .messages::-webkit-scrollbar-thumb {
-  background: rgba(102, 119, 129, 0.35);
+  background: rgba(111, 98, 102, 0.35);
   border-radius: 10px;
 }
 
 .messages::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 119, 129, 0.5);
+  background: rgba(111, 98, 102, 0.5);
 }
 
 .messages::-webkit-scrollbar-track {
@@ -754,7 +757,7 @@ body {
   flex-shrink: 1;
 
   box-shadow:
-    0 1px 1px rgba(11, 20, 26, 0.12);
+    0 1px 1px rgba(36, 26, 29, 0.12);
 }
 
 
@@ -765,7 +768,7 @@ body {
 .my-message .message {
   background: var(--message-me);
 
-  color: var(--text);
+  color: #FFFFFF;
 
   border-radius:
     7px 0 7px 7px;
@@ -861,7 +864,7 @@ body {
 
   border-radius: 8px;
 
-  background: #f0f2f5;
+  background: #F0E9E1;
 
   display: flex;
   align-items: center;
@@ -908,9 +911,9 @@ body {
 
   border-radius: 8px;
 
-  background: rgba(0, 168, 132, 0.08);
+  background: rgba(127, 29, 58, 0.08);
 
-  border: 1px solid rgba(0, 168, 132, 0.08);
+  border: 1px solid rgba(127, 29, 58, 0.08);
 
   overflow: hidden;
 }
@@ -928,7 +931,7 @@ body {
 
   border-radius: 7px;
 
-  background: #e7f5f1;
+  background: #F3E3E8;
 
   color: var(--primary);
 
@@ -999,7 +1002,7 @@ body {
 
   border-radius: 50%;
 
-  background: #f0f2f5;
+  background: #F5EFE8;
 
   color: var(--primary-hover);
 
@@ -1020,9 +1023,9 @@ body {
 }
 
 .download-btn:hover {
-  background: #d9fdd3;
+  background: #F3E3E8;
 
-  color: #008069;
+  color: var(--primary);
 
   transform: scale(1.05);
 }
@@ -1053,7 +1056,7 @@ body {
 
   padding: 9px 15px;
 
-  background: #f7f9fa;
+  background: #FBF8F4;
 
   border-top: 1px solid var(--border);
 
@@ -1126,7 +1129,7 @@ body {
 
   border-radius: 7px;
 
-  background: #e7f5f1;
+  background: #F3E3E8;
 
   color: var(--primary);
 }
@@ -1141,7 +1144,7 @@ body {
 
   border-radius: 50%;
 
-  background: #f0f2f5;
+  background: #F5EFE8;
 
   color: var(--text-secondary);
 
@@ -1161,7 +1164,7 @@ body {
 }
 
 .remove-file-btn:hover {
-  background: #fde8e7;
+  background: #F8E4E7;
 
   color: var(--danger);
 }
@@ -1178,7 +1181,7 @@ body {
 
   padding: 10px 14px;
 
-  background: #f0f2f5;
+  background: #F5EFE8;
 
   border-top: 1px solid var(--border);
 
@@ -1209,7 +1212,7 @@ body {
 
   border: none;
 
-  background: #ffffff;
+  background: #FFFFFF;
 
   color: var(--text);
 
@@ -1234,7 +1237,7 @@ body {
 .message-input input:focus {
   border: none;
 
-  background: #ffffff;
+  background: #FFFFFF;
 
   box-shadow:
     inset 0 0 0 1px var(--border-dark);
@@ -1256,7 +1259,7 @@ body {
 
   background: var(--primary);
 
-  color: #ffffff;
+  color: #FFFFFF;
 
   cursor: pointer;
 
@@ -1324,7 +1327,7 @@ body {
 }
 
 .file-upload-btn:hover {
-  background: #e2e6e8;
+  background: #E8DED5;
 
   color: var(--primary);
 }
